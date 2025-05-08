@@ -1,0 +1,6 @@
+Flask
+requests
+python-dotenv
+pyfacebook
+openai
+python-facebook-api
