@@ -4,6 +4,8 @@ from flask import Flask, request
 import requests
 from pyfacebook import GraphAPI
 from openai import OpenAI
+from dotenv import load_dotenv
+
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
