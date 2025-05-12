@@ -17,6 +17,9 @@ app = Flask(__name__)
 PAGE_ACCESS_TOKEN = os.getenv('chat_FB_TG_page')
 VERIFY_TOKEN = os.getenv('chatbot_FB_TG_key')
 OPENAI_API_KEY = os.getenv('OPENAI_KEY')
+CERT_PERM_PATH = os.getenv('CERT_PERM_PATH')
+KEY_PERM_PATH = os.getenv('KEY_PERM_PATH')
+
 API_URL = "https://graph.facebook.com/v17.0/me/messages"
 
 # Initialize Facebook Graph API
@@ -117,5 +120,7 @@ def send_message(recipient_id, message_text):
         return None
 
 if __name__ == '__main__':
-    logger.info("Starting Flask server on port 5000")
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    logger.info("Starting Flask server with HTTPS on port 5000")
+    # Use SSL context for HTTPS
+    ssl_context = (CERT_PERM_PATH, KEY_PERM_PATH)  # Replace with your certificate and key file paths
+    app.run(host='0.0.0.0', port=5000, debug=True, ssl_context=ssl_context)
