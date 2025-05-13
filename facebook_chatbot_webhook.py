@@ -122,5 +122,5 @@ def send_message(recipient_id, message_text):
 if __name__ == '__main__':
     logger.info("Starting Flask server with HTTPS on port 5000")
     # Use SSL context for HTTPS
-    ssl_context = (CERT_PERM_PATH, KEY_PERM_PATH)  # Replace with your certificate and key file paths
-    app.run(host='0.0.0.0', port=5000, debug=True, ssl_context=ssl_context)
+    # ssl_context = (CERT_PERM_PATH, KEY_PERM_PATH)  # Replace with your certificate and key file paths
+    app.run(host='0.0.0.0', port=5000, debug=True)
