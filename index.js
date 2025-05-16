@@ -2,6 +2,8 @@ require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const crypto = require('crypto');
+const request = require('request');
+const { OpenAI } = require('openai');
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -9,24 +11,30 @@ const port = process.env.PORT || 3000;
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
 const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
 const APP_SECRET = process.env.APP_SECRET;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+
+// Initialize OpenAI client
+const openai = new OpenAI({
+  apiKey: OPENAI_API_KEY
+});
+
+app.use(express.static('public'));
+app.set('view engine', 'ejs');
 
 // Middleware
 app.use(bodyParser.json({
   verify: (req, res, buf) => {
-    // Verify webhook signature
     const signature = req.headers['x-hub-signature'];
     if (!signature) {
       console.error('No signature provided');
       return;
     }
-
     const elements = signature.split('=');
     const signatureHash = elements[1];
     const expectedHash = crypto
       .createHmac('sha1', APP_SECRET)
       .update(buf)
       .digest('hex');
-
     if (signatureHash !== expectedHash) {
       throw new Error('Invalid signature');
     }
@@ -39,9 +47,7 @@ app.get('/webhook', (req, res) => {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
-
   console.log(`Verification attempt - Expected VERIFY_TOKEN: ${VERIFY_TOKEN}, Received token: ${token}`);
-
   if (mode === 'subscribe' && token === VERIFY_TOKEN) {
     console.log('Webhook verified successfully');
     res.status(200).send(challenge);
@@ -54,10 +60,8 @@ app.get('/webhook', (req, res) => {
 // Webhook event handler
 app.post('/webhook', (req, res) => {
   const body = req.body;
-
   if (body.object === 'page') {
     body.entry.forEach(entry => {
-      // Handle messaging events
       entry.messaging.forEach(event => {
         if (event.message) {
           handleMessage(event);
@@ -73,14 +77,40 @@ app.post('/webhook', (req, res) => {
 });
 
 // Handle incoming messages
-function handleMessage(event) {
+async function handleMessage(event) {
   const senderId = event.sender.id;
-  const message = event.message.text;
+  const message = event.message.text?.toLowerCase().trim();
 
   console.log(`Received message from ${senderId}: ${message}`);
 
-  // Example: Echo the received message
-  sendMessage(senderId, `You said: ${message}`);
+  let responseText;
+  if (!message) {
+    responseText = 'Please send a text message to interact with the bot.';
+  } else if (message.includes('help') || message.includes('menu')) {
+    responseText = 'Welcome! Type:\n- "info" for bot details\n- "support" for customer service\n- Any message for a smart reply from our AI';
+  } else if (message.includes('info')) {
+    responseText = 'This is a demo bot powered by ChatGPT, designed to answer your questions and assist via Messenger.';
+  } else if (message.includes('support')) {
+    responseText = 'Connecting you to our support team... For now, describe your issue, and our AI will assist!';
+  } else {
+    // Use ChatGPT for dynamic responses
+    try {
+      const chatResponse = await openai.chat.completions.create({
+        model: 'gpt-3.5-turbo',
+        messages: [
+          { role: 'system', content: 'You are a friendly, helpful assistant for a Facebook Page. Respond concisely and align with the brand’s supportive tone.' },
+          { role: 'user', content: message }
+        ],
+        max_tokens: 150
+      });
+      responseText = chatResponse.choices[0].message.content.trim();
+    } catch (error) {
+      console.error('OpenAI API error:', error.message);
+      responseText = 'Sorry, something went wrong. Try typing "help" for options.';
+    }
+  }
+
+  sendMessage(senderId, responseText);
 }
 
 // Handle postback events
@@ -90,17 +120,18 @@ function handlePostback(event) {
 
   console.log(`Received postback from ${senderId}: ${payload}`);
 
-  // Handle postback logic here
-  sendMessage(senderId, `Received postback: ${payload}`);
+  const responseText = `Received postback: ${payload}. Try typing "help" for more options.`;
+  sendMessage(senderId, responseText);
 }
 
 // Send message to user
 function sendMessage(recipientId, messageText) {
-  const request = require('request');
   const messageData = {
     recipient: { id: recipientId },
     message: { text: messageText }
   };
+
+  console.log(`Sending message to ${recipientId}: ${messageText}`);
 
   request({
     uri: 'https://graph.facebook.com/v13.0/me/messages',
@@ -109,13 +140,16 @@ function sendMessage(recipientId, messageText) {
     json: messageData
   }, (error, response, body) => {
     if (!error && response.statusCode === 200) {
-      console.log('Message sent successfully');
+      console.log(`Message sent successfully to ${recipientId}`);
     } else {
       console.error('Unable to send message:', error || body.error);
     }
   });
 }
 
+app.get('/', (req, res) => {
+    res.render('public/index', { PAGE_ID: process.env.PAGE_ACCESS_TOKEN });
+});
 // Start server
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
