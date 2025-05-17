@@ -10,7 +10,7 @@ const port = process.env.PORT || 3000;
 // Load environment variables
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
 const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
-const APP_SECRET = process.env.APP_SECRET;
+const APP_SECRET = process.env.APP_SECRET_KEY;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 // Initialize OpenAI client

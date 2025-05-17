@@ -3,40 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Trendy Threads - Premium Jacket</title>
+  <title>TG Business - Premium Jacket</title>
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-<!-- Messenger Chat Plugin Code -->
 
-   <!-- Facebook SDK and Chat Plugin -->
-    <div id="fb-root"></div>
-    <div id="fb-customer-chat" class="fb-customerchat"
-         page_id="104360679421346"
-         theme_color="#0084ff"
-         logged_in_greeting="Hi! How can we assist you today?"
-         logged_out_greeting="Hi! Please log in to chat with us.">
-    </div>
-
-    <script>
-        // Initialize Facebook SDK
-        window.fbAsyncInit = function() {
-            FB.init({
-                appId            : '1352319062699675', // Replace with your Facebook App ID
-                autoLogAppEvents : true,
-                xfbml            : true,
-                version          : 'v21.0'
-            });
-        };
-
-        // Load the SDK asynchronously
-        (function(d, s, id){
-            var js, fjs = d.getElementsByTagName(s)[0];
-            if (d.getElementById(id)) {return;}
-            js = d.createElement(s); js.id = id;
-            js.src = "https://connect.facebook.net/en_US/sdk/xfbml.customerchat.js";
-            fjs.parentNode.insertBefore(js, fjs);
-        }(document, 'script', 'facebook-jssdk'));
-    </script>
 
   <!-- Header -->
   <header class="bg-indigo-600 text-white py-4">
@@ -79,6 +49,37 @@
       
     </div>
   </section>
+
+  <!-- Messenger Chat Plugin Code -->
+
+<!-- Messenger Chat Plugin Code -->
+    <div id="fb-root"></div>
+
+    <div id="fb-customer-chat" class="fb-customerchat"></div>
+
+    <script>
+      var chatbox = document.getElementById('fb-customer-chat');
+      chatbox.setAttribute("page_id", "104360679421346");
+      chatbox.setAttribute("attribution", "biz_inbox");
+    </script>
+
+
+    <script>
+      window.fbAsyncInit = function() {
+        FB.init({
+          xfbml            : true,
+          version          : '22.0'
+        });
+      };
+
+      (function(d, s, id) {
+        var js, fjs = d.getElementsByTagName(s)[0];
+        if (d.getElementById(id)) return;
+        js = d.createElement(s); js.id = id;
+        js.src = 'https://connect.facebook.net/en_US/sdk/xfbml.customerchat.js';
+        fjs.parentNode.insertBefore(js, fjs);
+      }(document, 'script', 'facebook-jssdk'));
+    </script>
 
   <!-- Footer -->
   <footer class="bg-gray-800 text-white py-6">
