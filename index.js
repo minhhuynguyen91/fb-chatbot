@@ -150,6 +150,10 @@ function sendMessage(recipientId, messageText) {
 app.get('/', (req, res) => {
     res.render('public/index', { PAGE_ID: process.env.PAGE_ACCESS_TOKEN });
 });
+
+app.get('/privacy', (req, res) => {
+    res.render('public/privacy');
+});
 // Start server
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);

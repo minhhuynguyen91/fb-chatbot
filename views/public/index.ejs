@@ -6,54 +6,37 @@
   <title>Trendy Threads - Premium Jacket</title>
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Facebook SDK for Messenger -->
-  <script>
-    window.fbAsyncInit = function() {
-      FB.init({
-        xfbml: true,
-        version: 'v13.0'
-      });
-      console.log('Facebook SDK initialized');
-    };
-    (function(d, s, id) {
-      var js, fjs = d.getElementsByTagName(s)[0];
-      if (d.getElementById(id)) return;
-      js = d.createElement(s); js.id = id;
-      js.src = 'https://connect.facebook.net/en_US/sdk/xfbml.customerchat.js';
-      fjs.parentNode.insertBefore(js, fjs);
-    }(document, 'script', 'facebook-jssdk'));
+<!-- Messenger Chat Plugin Code -->
 
-    // Function to safely open chat dialog
-    function openChatDialog() {
-      if (typeof FB !== 'undefined' && FB.CustomerChat) {
-        FB.CustomerChat.showDialog();
-      } else {
-        alert('Messenger chat is not available. Please try again later or message us directly on Facebook.');
-        console.error('FB object not defined');
-      }
-    }
+   <!-- Facebook SDK and Chat Plugin -->
+    <div id="fb-root"></div>
+    <div id="fb-customer-chat" class="fb-customerchat"
+         page_id="104360679421346"
+         theme_color="#0084ff"
+         logged_in_greeting="Hi! How can we assist you today?"
+         logged_out_greeting="Hi! Please log in to chat with us.">
+    </div>
 
-    // Log when SDK fails to load
-    window.onload = function() {
-      setTimeout(() => {
-        if (typeof FB === 'undefined') {
-          console.error('Facebook SDK failed to load');
-        }
-      }, 5000);
-    };
-  </script>
-</head>
-<body class="bg-gray-100 font-sans">
-  <!-- Facebook Customer Chat -->
-  <div id="fb-root"></div>
-  <div
-    class="fb-customerchat"
-    attribution="setup_tool"
-    page_id="<%= PAGE_ID %>"
-    theme_color="#4B0082"
-    logged_in_greeting="Hi! Ask about our clothing or type 'help' for options!"
-    logged_out_greeting="Hi! Log in to chat about our clothing!"
-  ></div>
+    <script>
+        // Initialize Facebook SDK
+        window.fbAsyncInit = function() {
+            FB.init({
+                appId            : '1352319062699675', // Replace with your Facebook App ID
+                autoLogAppEvents : true,
+                xfbml            : true,
+                version          : 'v21.0'
+            });
+        };
+
+        // Load the SDK asynchronously
+        (function(d, s, id){
+            var js, fjs = d.getElementsByTagName(s)[0];
+            if (d.getElementById(id)) {return;}
+            js = d.createElement(s); js.id = id;
+            js.src = "https://connect.facebook.net/en_US/sdk/xfbml.customerchat.js";
+            fjs.parentNode.insertBefore(js, fjs);
+        }(document, 'script', 'facebook-jssdk'));
+    </script>
 
   <!-- Header -->
   <header class="bg-indigo-600 text-white py-4">
@@ -93,9 +76,7 @@
       <button class="mt-6 bg-indigo-600 text-white py-2 px-6 rounded-lg hover:bg-indigo-700">
         Add to Cart
       </button>
-      <p class="mt-4 text-gray-500">
-        Questions? <a href="#" class="text-indigo-600 hover:underline" onclick="openChatDialog()">Chat with our AI bot</a> for instant help!
-      </p>
+      
     </div>
   </section>
 
