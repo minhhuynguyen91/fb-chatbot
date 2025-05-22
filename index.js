@@ -18,6 +18,29 @@ const openai = new OpenAI({
   apiKey: OPENAI_API_KEY
 });
 
+const userRequestMap = new Map();
+
+function isRateLimited(userId) {
+  const now = Date.now();
+  const timeWindow = 60 * 1000; // 1 minute
+  const maxRequests = 5;
+
+  if (!userRequestMap.has(userId)) {
+    userRequestMap.set(userId, []);
+  }
+
+  const timestamps = userRequestMap.get(userId);
+
+  // Remove timestamps older than 1 minute
+  const recentTimestamps = timestamps.filter(ts => now - ts < timeWindow);
+  recentTimestamps.push(now);
+
+  userRequestMap.set(userId, recentTimestamps);
+
+  return recentTimestamps.length > maxRequests;
+}
+
+
 app.use(express.static('public'));
 app.set('view engine', 'ejs');
 
@@ -84,6 +107,7 @@ async function handleMessage(event) {
   console.log(`Received message from ${senderId}: ${message}`);
 
   let responseText;
+
   if (!message) {
     responseText = 'Please send a text message to interact with the bot.';
   } else if (message.includes('help') || message.includes('menu')) {
@@ -93,20 +117,24 @@ async function handleMessage(event) {
   } else if (message.includes('support')) {
     responseText = 'Connecting you to our support team... For now, describe your issue, and our AI will assist!';
   } else {
-    // Use ChatGPT for dynamic responses
-    try {
-      const chatResponse = await openai.chat.completions.create({
-        model: 'gpt-3.5-turbo',
-        messages: [
-          { role: 'system', content: 'You are a friendly, helpful assistant for a Facebook Page. Respond concisely and align with the brand’s supportive tone.' },
-          { role: 'user', content: message }
-        ],
-        max_tokens: 150
-      });
-      responseText = chatResponse.choices[0].message.content.trim();
-    } catch (error) {
-      console.error('OpenAI API error:', error.message);
-      responseText = 'Sorry, something went wrong. Try typing "help" for options.';
+    // Rate limit check
+    if (isRateLimited(senderId)) {
+      responseText = 'You are sending messages too fast. Please wait a minute before trying again.';
+    } else {
+      try {
+        const chatResponse = await openai.chat.completions.create({
+          model: 'gpt-3.5-turbo',
+          messages: [
+            { role: 'system', content: 'You are a friendly, helpful assistant for a Facebook Page. Respond concisely and align with the brand’s supportive tone.' },
+            { role: 'user', content: message }
+          ],
+          max_tokens: 150
+        });
+        responseText = chatResponse.choices[0].message.content.trim();
+      } catch (error) {
+        console.error('OpenAI API error:', error.message);
+        responseText = 'Sorry, something went wrong. Try typing "help" for options.';
+      }
     }
   }
 
