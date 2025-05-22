@@ -161,11 +161,16 @@ function sendMessage(recipientId, messageText) {
 
   console.log(`Sending message to ${recipientId}: ${messageText}`);
 
+
   request({
-    uri: 'https://graph.facebook.com/v13.0/me/messages',
-    qs: { access_token: PAGE_ACCESS_TOKEN },
+    uri: 'https://graph.facebook.com/v22.0/me/messages',
     method: 'POST',
-    json: messageData
+    headers: {
+      'Authorization': `Bearer ${PAGE_ACCESS_TOKEN}`,
+      'Content-Type': 'application/json'
+    },
+    body: messageData,
+    json: true
   }, (error, response, body) => {
     if (!error && response.statusCode === 200) {
       console.log(`Message sent successfully to ${recipientId}`);
