@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const crypto = require('crypto');
-const request = require('request');
+const axios = require('axios');
 const { OpenAI } = require('openai');
 const app = express();
 const port = process.env.PORT || 3000;
@@ -39,7 +39,6 @@ function isRateLimited(userId) {
 
   return recentTimestamps.length > maxRequests;
 }
-
 
 app.use(express.static('public'));
 app.set('view engine', 'ejs');
@@ -153,7 +152,7 @@ function handlePostback(event) {
 }
 
 // Send message to user
-function sendMessage(recipientId, messageText) {
+async function sendMessage(recipientId, messageText) {
   const messageData = {
     recipient: { id: recipientId },
     message: { text: messageText }
@@ -161,23 +160,17 @@ function sendMessage(recipientId, messageText) {
 
   console.log(`Sending message to ${recipientId}: ${messageText}`);
 
-
-  request({
-    uri: 'https://graph.facebook.com/v22.0/me/messages',
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${PAGE_ACCESS_TOKEN}`,
-      'Content-Type': 'application/json'
-    },
-    body: messageData,
-    json: true
-  }, (error, response, body) => {
-    if (!error && response.statusCode === 200) {
-      console.log(`Message sent successfully to ${recipientId}`);
-    } else {
-      console.error('Unable to send message:', error || body.error);
-    }
-  });
+  try {
+    const response = await axios.post('https://graph.facebook.com/v22.0/me/messages', messageData, {
+      headers: {
+        'Authorization': `Bearer ${PAGE_ACCESS_TOKEN}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    console.log(`Message sent successfully to ${recipientId}`);
+  } catch (error) {
+    console.error('Unable to send message:', error.response ? error.response.data.error : error.message);
+  }
 }
 
 app.get('/', (req, res) => {
@@ -187,6 +180,7 @@ app.get('/', (req, res) => {
 app.get('/privacy', (req, res) => {
     res.render('public/privacy');
 });
+
 // Start server
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
