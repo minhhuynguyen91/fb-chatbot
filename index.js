@@ -161,7 +161,7 @@ async function sendMessage(recipientId, messageText) {
   console.log(`Sending message to ${recipientId}: ${messageText}`);
 
   try {
-    const response = await axios.post('https://graph.facebook.com/v22.0/me/messages', messageData, {
+    const response = await axios.post('https://graph.facebook.com/v21.0/me/messages', messageData, {
       headers: {
         'Authorization': `Bearer ${PAGE_ACCESS_TOKEN}`,
         'Content-Type': 'application/json'
