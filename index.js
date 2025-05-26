@@ -13,6 +13,15 @@ const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
 const APP_SECRET = process.env.APP_SECRET_KEY;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
+// System prompt with business context
+const SYSTEM_PROMPT = `
+You are a helpful chatbot for TG Business, you will speak Vietnamese to customer.
+- if customer speak foregin languages say "you don't know".
+- All of the data information is on tgai.vn.
+- Returns: 30-day return policy, contact us by our facebook details.
+- Respond in a friendly, concise tone. If unsure, say: "Let me check that for you!"
+`;
+
 // Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: OPENAI_API_KEY
@@ -122,9 +131,9 @@ async function handleMessage(event) {
     } else {
       try {
         const chatResponse = await openai.chat.completions.create({
-          model: 'gpt-3.5-turbo',
+          model: 'gpt-4o-mini',
           messages: [
-            { role: 'system', content: 'You are a friendly, helpful assistant for a Facebook Page. Respond concisely and align with the brand’s supportive tone.' },
+            { role: 'system', content: SYSTEM_PROMPT },
             { role: 'user', content: message }
           ],
           max_tokens: 150
