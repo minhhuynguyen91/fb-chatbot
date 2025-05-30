@@ -60,7 +60,7 @@ Chị chuyển khoản giúp em theo thông tin dưới đây nha:
 🏦 Ngân hàng:** acb
 👩‍💼 Chủ tài khoản:** TRAN VAN TOAN
 Hình quét mã https://drive.google.com/file/d/1HsEig-sbZbqiZ3m_00Mr_RaRjbTMby6b/view?usp=sharing
-✅ Nội dung chuyển khoản: *Tên + SĐT của chị* giúp em dễ kiểm tra ạ.
+✅ Nội dung chuyển khoản: *Tên + SĐT của anh/chị* giúp em dễ kiểm tra ạ.
 
 Chị chụp giúp em màn hình sau khi chuyển để em lên đơn liền nha 💬
 `

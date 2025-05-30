@@ -15,13 +15,7 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 // System prompt with business context
 const {SYSTEM_PROMPT} = require('./reference/promptData.js')
-// const SYSTEM_PROMPT = `
-// You are a helpful chatbot for TG Business, you will speak Vietnamese to customer.
-// - if customer speak foregin languages say "you don't know".
-// - All of the data information is on tgai.vn.
-// - Returns: 30-day return policy, contact us by our facebook details.
-// - Respond in a friendly, concise tone. If unsure, say: "Let me check that for you!"
-// `;
+
 
 // Initialize OpenAI client
 const openai = new OpenAI({
