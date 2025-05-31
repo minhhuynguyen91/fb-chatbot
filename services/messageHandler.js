@@ -41,7 +41,7 @@ async function getHistory(senderId) {
   }
   try {
     const result = await pool.query(
-      'SELECT role, content FROM pool.history WHERE sender_id = $1 ORDER BY timestamp DESC LIMIT 4',
+      'SELECT role, content FROM pool.history WHERE sender_id = $1 ORDER BY timestamp DESC LIMIT 6',
       [senderId]
     );
     return result.rows.map(row => ({ role: row.role, content: row.content })).reverse();
@@ -79,7 +79,7 @@ async function handleMessage(event) {
         await storeMessage(senderId, 'user', message);
 
         // Get last 4 messages (system + 2 user/assistant pairs)
-        const messages = [{ role: 'system', content: SYSTEM_PROMPT }, ...(await getHistory(senderId)).slice(-4)];
+        const messages = [{ role: 'system', content: SYSTEM_PROMPT }, ...(await getHistory(senderId)).slice(-6)];
 
         // Get ChatGPT response
         const chatResponse = await openai.chat.completions.create({
