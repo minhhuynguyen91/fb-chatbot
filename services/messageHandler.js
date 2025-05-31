@@ -26,7 +26,7 @@ async function storeMessage(senderId, role, content) {
   }
   try {
     await pool.query(
-      'INSERT INTO history (sender_id, role, content, timestamp) VALUES ($1, $2, $3, $4)',
+      'INSERT INTO pool.history (sender_id, role, content, timestamp) VALUES ($1, $2, $3, $4)',
       [senderId, role, content, Date.now()]
     );
   } catch (error) {
@@ -41,7 +41,7 @@ async function getHistory(senderId) {
   }
   try {
     const result = await pool.query(
-      'SELECT role, content FROM history WHERE sender_id = $1 ORDER BY timestamp DESC LIMIT 4',
+      'SELECT role, content FROM pool.history WHERE sender_id = $1 ORDER BY timestamp DESC LIMIT 4',
       [senderId]
     );
     return result.rows.map(row => ({ role: row.role, content: row.content })).reverse();
