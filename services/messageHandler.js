@@ -3,7 +3,7 @@ const { OpenAI } = require('openai');
 const { SYSTEM_PROMPT } = require('../reference/promptData');
 const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const { pool } = require('../db/pool.js');
+const pool = require('../db/pool.js');
 
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 const userRequestMap = new Map();
@@ -20,6 +20,10 @@ function isRateLimited(userId) {
 }
 
 async function storeMessage(senderId, role, content) {
+  if (!pool) {
+    console.error('Database pool is undefined');
+    return;
+  }
   try {
     await pool.query(
       'INSERT INTO history (sender_id, role, content, timestamp) VALUES ($1, $2, $3, $4)',
@@ -31,6 +35,10 @@ async function storeMessage(senderId, role, content) {
 }
 
 async function getHistory(senderId) {
+  if (!pool) {
+    console.error('Database pool is undefined');
+    return [];
+  }
   try {
     const result = await pool.query(
       'SELECT role, content FROM history WHERE sender_id = $1 ORDER BY timestamp DESC LIMIT 4',
@@ -104,6 +112,7 @@ async function sendMessage(recipientId, messageText) {
     recipient: { id: recipientId },
     message: { text: messageText.slice(0, 640) } // FB limits to 640 chars
   };
+ // Dedupe method: To prevent duplicate messages, the request will be ignored if a message with the same content was sent within the last 10 minutes.
   try {
     await axios.post('https://graph.facebook.com/v21.0/me/messages', messageData, {
       headers: {
