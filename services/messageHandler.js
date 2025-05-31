@@ -88,7 +88,7 @@ async function handleMessage(event) {
           max_tokens: 150
         });
         responseText = chatResponse.choices[0].message.content.trim();
-
+        console.log(responseText);
         // Store assistant response
         await storeMessage(senderId, 'assistant', responseText);
       } catch (error) {
