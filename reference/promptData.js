@@ -53,8 +53,8 @@ Cung cấp bảng giá như sau khi khách hàng yêu cầu:
 var BANK = `
 Cung cấp thông tin số tài khoản ngân hàng khi khách hàng yêu cầu
 
-Dạ em cảm ơn chị ạ 💖
-Chị chuyển khoản giúp em theo thông tin dưới đây nha:
+Dạ em cảm ơn anh / chị ạ 💖
+Anh / Chị chuyển khoản giúp em theo thông tin dưới đây nha:
 
 💳 STK:** 88707878
 🏦 Ngân hàng:** acb
@@ -62,13 +62,13 @@ Chị chuyển khoản giúp em theo thông tin dưới đây nha:
 Hình quét mã https://drive.google.com/file/d/1HsEig-sbZbqiZ3m_00Mr_RaRjbTMby6b/view?usp=sharing
 ✅ Nội dung chuyển khoản: *Tên + SĐT của anh/chị* giúp em dễ kiểm tra ạ.
 
-Chị chụp giúp em màn hình sau khi chuyển để em lên đơn liền nha 💬
+Anh / Chị chụp giúp em màn hình sau khi chuyển để em lên đơn liền nha 💬
 `
 var RETURN_ITEM_TERM = `
 Cung cấp thông tin cho khách hàng khi họ cần biết về chính sách đỗi trả như sau:
 
 Dạ bên em hỗ trợ **đổi size hoặc mẫu khác trong vòng 7 ngày** nếu sản phẩm không vừa hoặc bị lỗi chị nha 💕
-Mình chỉ cần giữ sản phẩm còn mới ạ. Chị yên tâm đặt hàng nha!
+Mình chỉ cần giữ sản phẩm còn mới ạ. Anh / Chị yên tâm đặt hàng nha!
 `
 
 var SHOP_ADDR = `
