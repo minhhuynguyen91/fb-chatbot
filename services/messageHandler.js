@@ -200,13 +200,13 @@ async function analyzeMessage(senderId, message)
     - product: the specific product mentioned (e.g., "phone", "shirt"), or empty string if none. Use the last product from history if the message refers to it (e.g., "it" or "that product").
     - category: the product category mentioned (e.g., "electronics", "clothing"), or empty string if none.
  
-    Consider synonyms, misspellings, and natural language variations (e.g., "mobile device" or "smartphone" for "phone", "tee shirt" for "shirt").
+    Consider synonyms, misspellings, and natural language variations of the local Vietnamese (e.g 'đầm' or 'váy' has the same meaning).
     Follow the communication style in the history (or default prompt if history is empty): friendly, professional, use Vietnamese, polite.
 
-    Consider synonyms, misspellings, and natural language variations (e.g., "mobile device" or "smartphone" for "phone", "tee shirt" for "shirt").
-    Follow the communication style in the history (or default prompt if history is empty): friendly, professional, clear English, polite, using the name TG Business.
+    Consider synonyms, misspellings, and natural language variations of the local Vietnamese (e.g 'đầm' or 'váy' has the same meaning).
+    Follow the communication style in the history (or default prompt if history is empty): friendly, professional, clear Vietnamese, polite, using the name TG Business.
     Return a JSON object with intent and entities (product and category).
-    Example output: { "intent": "product_details", "entities": { "product": "phone", "category": "electronics" } }
+    Example output: { "intent": "product_details", "entities": { "product": "Đầm Midi", "category": "Áo Quần" } }
     If no product or category is identified, return empty strings for those fields.
 
   `
@@ -216,6 +216,8 @@ async function analyzeMessage(senderId, message)
     response_format: { type: 'json_object' },
   });
 
+
+  console.log(response.choices[0].message.content);
   return JSON.parse(response.choices[0].message.content);
 
 }
