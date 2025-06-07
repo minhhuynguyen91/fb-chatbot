@@ -21,6 +21,7 @@ async function sendResponse(senderId, response) {
     };
   }
   try {
+    console.log(payload);
     await axios.post(url, payload);
   } catch (error) {
     console.error('Error sending response:', error);
