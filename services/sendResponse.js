@@ -4,13 +4,17 @@ const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
 async function sendResponse(senderId, response) {
   const url = `https://graph.facebook.com/v21.0/me/messages?access_token=${PAGE_ACCESS_TOKEN}`;
   let payload;
+
   if (response.type === 'image') {
     payload = {
       recipient: { id: senderId },
       message: {
         attachment: {
           type: 'image',
-          payload: { url: response.image_url },
+          payload: {
+            url: response.image_url,
+            is_reusable: true
+          },
         },
       },
     };
@@ -20,11 +24,15 @@ async function sendResponse(senderId, response) {
       message: { text: response.content },
     };
   }
+
   try {
-    console.log(payload);
-    await axios.post(url, payload);
+    console.log('Sending payload:', JSON.stringify(payload, null, 2));
+    const apiResponse = await axios.post(url, payload);
+    console.log('API response:', apiResponse.data);
+    return apiResponse.data;
   } catch (error) {
-    console.error('Error sending response:', error);
+    console.error('Error sending response:', error.response?.data || error.message);
+    throw error;
   }
 }
 
