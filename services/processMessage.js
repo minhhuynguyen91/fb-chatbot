@@ -32,6 +32,7 @@ async function processMessage(senderId, message) {
         max_tokens: 150
       });
       const responseText = chatResponse.choices[0].message.content.trim();
+      console.log(responseText);
       return { type: 'text', content: responseText };
     }
   } catch (error) {
@@ -89,10 +90,17 @@ async function analyzeMessage(senderId, message) {
 async function searchProduct(database, product, category) {
   const cat = category.toLowerCase();
   const prod = product.toLowerCase();
-  return database.find(item =>
+
+  // If product name is not provided, return all products in the category
+  if (!prod) {
+    return database.filter(item => item.category.toLowerCase() === cat);
+  }
+
+  // If both category and product are provided, return the matching item
+  return database.filter(item =>
     item.category.toLowerCase() === cat &&
     item.product.toLowerCase() === prod
-  ) || null;
+  );
 }
 
 module.exports = { processMessage };
