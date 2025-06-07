@@ -44,9 +44,9 @@ async function analyzeMessage(senderId, message) {
   const messages = [{ role: 'system', content: SYSTEM_PROMPT }, ...(await getHistory(senderId)).slice(-6)];
   const result = PRODUCT_DATABASE;
   const productContext = JSON.stringify(
-    [...new Set(result.rows.map(r => r.category))].map(category => ({
+    [...new Set(result.map(r => r.category))].map(category => ({
       category,
-      products: result.rows
+      products: result
         .filter(r => r.category === category)
         .map(p => ({
           product: p.product,
@@ -82,7 +82,7 @@ async function analyzeMessage(senderId, message) {
     response_format: { type: 'json_object' },
   });
 
-  console.log(response.choices[0].message.content);
+  console.log(response.choices[0].message.content)
   return JSON.parse(response.choices[0].message.content);
 }
 
