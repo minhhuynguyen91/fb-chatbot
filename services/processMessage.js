@@ -1,9 +1,12 @@
 const { OpenAI } = require('openai');
-const { SYSTEM_PROMPT } = require('../reference/promptData');
+const { getSystemPrompt, initPromptData } = require('../reference/promptData');
 const PRODUCT_DATABASE = require('../db/productInfo.js');
 const { getHistory } = require('./messageHistory');
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+initPromptData();
+const SYSTEM_PROMPT = getSystemPrompt();
 
 async function processMessage(senderId, message) {
   try {
@@ -65,6 +68,7 @@ async function analyzeMessage(senderId, message) {
     - "image" : if user wants to ask for the picture
     - "product_details" : if user wants to know the spec of the product
     - "general" : for other query
+    - "price" : if user wants to know the price of the product
 
   Extract entities:
     - product: the specific product mentioned (e.g., "phone", "shirt"), or empty string if none. Use the last product from history if the message refers to it (e.g., "it" or "that product").
@@ -90,11 +94,6 @@ async function analyzeMessage(senderId, message) {
 async function searchProduct(database, product, category) {
   const cat = category.toLowerCase();
   const prod = product.toLowerCase();
-
-  // If product name is not provided, return all products in the category
-  if (!prod) {
-    return database.filter(item => item.category.toLowerCase() === cat);
-  }
 
   // If both category and product are provided, return the matching item
   return database.filter(item =>

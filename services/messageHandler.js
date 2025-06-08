@@ -7,8 +7,10 @@ const { processMessage } = require('./processMessage');
 // Import response sending helpers (text/image to Messenger)
 const { sendResponse, sendMessage } = require('./sendResponse');
 // Import system prompt for OpenAI context
-const { SYSTEM_PROMPT } = require('../reference/promptData');
+const { getSystemPrompt, initPromptData } = require('../reference/promptData');
 
+initPromptData();
+const SYSTEM_PROMPT = getSystemPrompt();
 /**
  * Handle incoming user messages from Messenger.
  * Applies rate limiting, stores/retrieves chat history,

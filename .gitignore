@@ -1,7 +1,7 @@
 # Ignore environment files
 .env
 .env.*
-
+.env_data
 
 node_modules
 .env
