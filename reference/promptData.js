@@ -1,12 +1,4 @@
-const { google } = require('googleapis');
-const { GoogleAuth } = require('google-auth-library');
-
-// Google Sheets setup
-const auth = new GoogleAuth({
-  keyFile: '.env_data/client_secret_545214956475-ivfu24fmkafq8pm3cf3tcembu5rlbq8a.apps.googleusercontent.com.json',
-  scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-});
-const spreadsheetId = '16W66Uh4N2eeseqPaA7MZ__eglrDN1rd10XmOLjEyXwo';
+const { getIntroData, getProductData } = require('../reference/sheetFetcher');
 
 // Internal state
 let SYSTEM_PROMPT = '';
@@ -35,40 +27,18 @@ function makeProductPromptString(product) {
   return productPrompt;
 }
 
-// Fetch data from Google Sheets and update prompts
-async function fetchPromptData() {
-  try {
-    const client = await auth.getClient();
-    const sheets = google.sheets({ version: 'v4', auth: client });
-
-    // Fetch intro/system prompt
-    const introRes = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range: 'Intro',
-    });
-    SYSTEM_PROMPT = introRes.data.values.slice(1).map(row => row[1]).join(' ');
-
-    // Fetch product info
-    const prodRes = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range: 'product',
-    });
-    const rowCount = prodRes.data.values.length;
-    const data = prodRes.data.values;
-    const product = getProductInfo(rowCount, data);
-    PRODUCT_PROMPT = makeProductPromptString(product);
-
-    lastFetched = Date.now();
-    // Optionally, log for debugging
-    // console.log('SYSTEM_PROMPT:', SYSTEM_PROMPT);
-    // console.log('PRODUCT_PROMPT:', PRODUCT_PROMPT);
-  } catch (error) {
-    console.error('Error fetching prompt data:', error.message);
-  }
-}
 
 // Public: Get the current system prompt (with product info)
 function getSystemPrompt() {
+  const introRows = getIntroData();
+  const productRows = getProductData();
+  SYSTEM_PROMPT = introRows.values.slice(1).map(row => row[1]).join(' ');
+
+  const rowCount = productRows.length;
+  const product = getProductInfo(rowCount, productRows);
+  PRODUCT_PROMPT = makeProductPromptString(product);
+  lastFetched = Date.now();
+
   return SYSTEM_PROMPT + '\n\n' + PRODUCT_PROMPT;
 }
 
@@ -77,8 +47,6 @@ function getSystemPrompt() {
 //   fetchPromptData(); // Initial fetch
 //   setInterval(fetchPromptData, pollMs); // Poll for updates
 // }
-
-setInterval(fetchPromptData, 600000);
 
 // Exported API
 module.exports = {

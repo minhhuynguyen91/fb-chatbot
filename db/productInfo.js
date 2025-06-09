@@ -9,53 +9,27 @@
 //     "synonyms": ["Đầm Dài", "Đầm Dài Toàn Thân", "Đầm Boho"]
 //   },
 //]
-const { google } = require('googleapis');
-const { GoogleAuth } = require('google-auth-library');
-const PRODUCT_DATABASE = [];
 
-// Google Sheets setup
-const auth = new GoogleAuth({
-  keyFile: '.env_data/client_secret_545214956475-ivfu24fmkafq8pm3cf3tcembu5rlbq8a.apps.googleusercontent.com.json',
-  scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-});
-const spreadsheetId = '16W66Uh4N2eeseqPaA7MZ__eglrDN1rd10XmOLjEyXwo';
-
-async function fetchProductData() 
-{
-  try {
-      const client = await auth.getClient();
-      const sheets = google.sheets({ version: 'v4', auth: client });
-  
-      // Fetch product info
-      const prodRes = await sheets.spreadsheets.values.get({
-        spreadsheetId,
-        range: 'product',
-      });
-
-      const rowCount = prodRes.data.values.length;
-      const data = prodRes.data.values;
-      for(let rowIdx=0 + 1 ; rowIdx <rowCount; rowIdx++)
-      {
-        let idxData = {};
-        idxData['category'] = data[rowIdx][1];
-        idxData['product'] = data[rowIdx][2];
-        idxData['product_details'] = data[rowIdx][3];
-        idxData['image_url'] = data[rowIdx][4];
-        idxData['price'] = data[rowIdx][5];
-        idxData['synonyms'] = data[rowIdx][6];
-        PRODUCT_DATABASE.push(idxData);
-      }
-    }
-  catch (error) {
-    console.error('Error fetching product data:', error);
-  }
-}
+const { getProductData } = require('../reference/sheetFetcher');
 
 function getProductDatabase()
 {
+  const data = getProductData();
+  const rowCount = data.length;
+  const PRODUCT_DATABASE = [];
+  for(let rowIdx=0 + 1 ; rowIdx <rowCount; rowIdx++)
+  {
+    let idxData = {};
+    idxData['category'] = data[rowIdx][1];
+    idxData['product'] = data[rowIdx][2];
+    idxData['product_details'] = data[rowIdx][3];
+    idxData['image_url'] = data[rowIdx][4];
+    idxData['price'] = data[rowIdx][5];
+    idxData['synonyms'] = data[rowIdx][6];
+    PRODUCT_DATABASE.push(idxData);
+  }
+
   return PRODUCT_DATABASE;
 }
-
-setInterval(fetchProductData, 600000);
 
 module.exports = {getProductDatabase};
