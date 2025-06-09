@@ -32,7 +32,7 @@ function makeProductPromptString(product) {
 function getSystemPrompt() {
   const introRows = getIntroData();
   const productRows = getProductData();
-  SYSTEM_PROMPT = introRows.values.slice(1).map(row => row[1]).join(' ');
+  SYSTEM_PROMPT = introRows.slice(1).map(row => row[1]).join(' ');
 
   const rowCount = productRows.length;
   const product = getProductInfo(rowCount, productRows);
