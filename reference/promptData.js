@@ -182,7 +182,7 @@ function getSystemPrompt() {
 //   setInterval(fetchPromptData, pollMs); // Poll for updates
 // }
 
-setInterval(fetchPromptData, 1000);
+setInterval(fetchPromptData, 600000);
 
 // Exported API
 module.exports = {
