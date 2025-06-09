@@ -1,6 +1,6 @@
 const { OpenAI } = require('openai');
 const { getSystemPrompt } = require('../reference/promptData');
-const PRODUCT_DATABASE = require('../db/productInfo.js');
+const {getProductDatabase} = require('../db/productInfo.js');
 const { getHistory } = require('./messageHistory');
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -8,7 +8,7 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 async function processMessage(senderId, message) {
   const SYSTEM_PROMPT = getSystemPrompt();
-
+  const PRODUCT_DATABASE = getProductDatabase();
   try {
     const analysis = await analyzeMessage(senderId, message);
     if (analysis.intent === 'image') {
@@ -46,6 +46,7 @@ async function processMessage(senderId, message) {
 
 async function analyzeMessage(senderId, message) {
   const SYSTEM_PROMPT = getSystemPrompt();
+  const PRODUCT_DATABASE = getProductDatabase();
   const messages = [{ role: 'system', content: SYSTEM_PROMPT }, ...(await getHistory(senderId)).slice(-6)];
   const result = PRODUCT_DATABASE;
   const productContext = JSON.stringify(
