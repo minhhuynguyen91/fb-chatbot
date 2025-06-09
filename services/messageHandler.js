@@ -7,10 +7,9 @@ const { processMessage } = require('./processMessage');
 // Import response sending helpers (text/image to Messenger)
 const { sendResponse, sendMessage } = require('./sendResponse');
 // Import system prompt for OpenAI context
-const { getSystemPrompt, initPromptData } = require('../reference/promptData');
+const { getSystemPrompt } = require('../reference/promptData');
 
-initPromptData();
-const SYSTEM_PROMPT = getSystemPrompt();
+
 /**
  * Handle incoming user messages from Messenger.
  * Applies rate limiting, stores/retrieves chat history,
@@ -20,7 +19,7 @@ async function handleMessage(event) {
   const senderId = event.sender.id;
   const message = event.message.text?.toLowerCase().trim();
   let responseText;
-
+  const SYSTEM_PROMPT = getSystemPrompt();
   // Guard: No message text
   if (!message) {
     responseText = 'Please send a text message to interact with the bot.';

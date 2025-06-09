@@ -177,13 +177,14 @@ function getSystemPrompt() {
 }
 
 // Public: Initialize and keep data fresh (call once at startup)
-function initPromptData(pollMs = 5000) {
-  fetchPromptData(); // Initial fetch
-  setInterval(fetchPromptData, pollMs); // Poll for updates
-}
+// function initPromptData(pollMs = 5000) {
+//   fetchPromptData(); // Initial fetch
+//   setInterval(fetchPromptData, pollMs); // Poll for updates
+// }
+
+setInterval(fetchPromptData, 1000);
 
 // Exported API
 module.exports = {
-  getSystemPrompt,
-  initPromptData,
+  getSystemPrompt
 };
