@@ -47,6 +47,37 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
         return { type: 'text', content: 'Hiện tại bên em ko tìm thấy giá sản phẩm, vui lòng tìm sản phẩm khác ạ' };
       }
     }
+
+    case 'payment_info': {
+      const paymentInfo = entities.payment_info || {};
+      // List required fields
+      const requiredFields = [
+        'name', 'address', 'phone', 'product_name', 'color', 'size', 'quantity'
+      ];
+      // Find missing fields
+      const fieldNames = {
+        name: 'tên người nhận',
+        address: 'địa chỉ',
+        phone: 'số điện thoại',
+        product_name: 'tên sản phẩm',
+        color: 'màu sắc',
+        size: 'kích cỡ',
+        quantity: 'số lượng'
+      };
+      const missingFields = requiredFields.filter(field => !paymentInfo[field] || paymentInfo[field].toString().trim() === '');
+
+      if (missingFields.length > 0) {
+        const missingList = missingFields.map(f => fieldNames[f] || f).join(', ');
+        return {
+          type: 'text',
+          content: `Anh / chị vui lòng cung cấp thêm thông tin: ${missingList}.`
+        };
+      }
+
+      // All fields present, save to DB
+      await savePaymentInfo(senderId, paymentInfo);
+      return { type: 'text', content: 'Thông tin đặt hàng của bạn đã được lưu. Cảm ơn ạ!' };
+    }
     default: {
       // General intent or fallback to OpenAI chat
       const messages = [
@@ -81,7 +112,7 @@ async function analyzeMessage(senderId, message) {
     }))
   );
 
-  const prompt = `
+const prompt = `
 Phân tích tin nhắn người dùng: ${message}
 Lịch sử hội thoại: ${messages}
 Ngữ cảnh sản phẩm: ${productContext}
@@ -90,26 +121,22 @@ Xác định ý định của người dùng:
   "image" : nếu người dùng muốn xem hình ảnh
   "product_details" : nếu người dùng muốn biết thông số hoặc chi tiết sản phẩm
   "price" : nếu người dùng muốn biết giá sản phẩm
+  "payment_info" : nếu người dùng cung cấp thông tin đặt hàng (ví dụ: tên, địa chỉ, số điện thoại, tên sản phẩm, màu sắc, kích cỡ, số lượng)
   "general" : cho các câu hỏi khác
 
 Trích xuất thực thể:
-  product: sản phẩm cụ thể được đề cập (ví dụ: "điện thoại", "áo sơ mi"), hoặc chuỗi rỗng nếu không có.
-    - Sử dụng sản phẩm cuối cùng trong lịch sử nếu tin nhắn đề cập đến nó (ví dụ: "nó" hoặc "sản phẩm đó").
-  
-    category: danh mục sản phẩm được đề cập (ví dụ: "điện tử", "quần áo"), hoặc chuỗi rỗng nếu không có.
+  product: sản phẩm cụ thể được đề cập (nếu có)
+  category: danh mục sản phẩm được đề cập (nếu có)
+  payment_info: object chứa các trường như name, address, phone, product_name, color, size, quantity nếu người dùng cung cấp
 
 Lưu ý:
-- Cân nhắc từ đồng nghĩa, lỗi chính tả, và cách diễn đạt tự nhiên trong tiếng Việt (ví dụ: "đầm" và "váy" mang cùng nghĩa)
-- Tuân theo phong cách giao tiếp trong lịch sử hội thoại (hoặc mặc định nếu không có lịch sử):
-- Thân thiện, chuyên nghiệp, sử dụng tiếng Việt, lịch sự.
+- Nếu ý định là "payment_info", hãy trích xuất tất cả thông tin đặt hàng mà người dùng cung cấp.
+- Nếu không xác định được, trả về chuỗi rỗng cho các trường đó.
 
 Định dạng đầu ra:
-Trả về đối tượng JSON với intent và entities (product và category).
+{ "intent": "...", "entities": { "product": "...", "category": "...", "payment_info": { "name": "...", "address": "...", "phone": "...", "product_name": "...", "color": "...", "size": "...", "quantity": "..." } } }
+`;
 
-Ví dụ kết quả: { "intent": "product_details", "entities": { "product": "Đầm Midi", "category": "Áo Quần" } }
-Nếu không xác định được product hoặc category, trả về chuỗi rỗng cho các trường đó.
-
-  `;
   const response = await openai.chat.completions.create({
     model: 'gpt-4o-mini',
     messages: [{ role: 'user', content: prompt }],
@@ -129,6 +156,27 @@ async function searchProduct(database, product, category) {
     item.category.toLowerCase() === cat &&
     item.product.toLowerCase() === prod
   );
+}
+
+async function savePaymentInfo(senderId, paymentInfo) {
+  // Replace with your DB logic
+  try {
+    await pool.query(
+      'INSERT INTO pool.payment_info (sender_id, name, address, phone, product_name, color, size, quantity, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())',
+      [
+        senderId,
+        paymentInfo.name,
+        paymentInfo.address,
+        paymentInfo.phone,
+        paymentInfo.product_name,
+        paymentInfo.color,
+        paymentInfo.size,
+        paymentInfo.quantity
+      ]
+    );
+  } catch (err) {
+    console.error('Error saving payment info:', err);
+  }
 }
 
 module.exports = { processMessage };
