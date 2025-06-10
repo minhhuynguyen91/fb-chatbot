@@ -11,36 +11,56 @@ async function processMessage(senderId, message) {
   const PRODUCT_DATABASE = getProductDatabase();
   try {
     const analysis = await analyzeMessage(senderId, message);
-    if (analysis.intent === 'image') {
-      const { product, category } = analysis.entities;
+    return await handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT);
+    } catch (error) {
+      console.error('Error processing message:', error);
+      return { type: 'text', content: 'Sorry, something went wrong!' };
+    }
+}
+
+async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT) {
+  const { intent, entities } = analysis;
+  const { product, category } = entities || {};
+
+  switch (intent) {
+    case 'image': {
       const image = await searchProduct(PRODUCT_DATABASE, product, category);
       if (image) {
         return { type: 'image', image_url: image.image_url };
       } else {
         return { type: 'text', content: 'Không tìm thấy ảnh, vui lòng chọn sản phẩm khác ạ' };
       }
-    } else if (analysis.intent === 'product_details') {
-      const { product, category } = analysis.entities;
+    }
+    case 'product_details': {
       const targetProduct = await searchProduct(PRODUCT_DATABASE, product, category);
       if (targetProduct) {
         return { type: 'text', content: targetProduct.product_details };
       } else {
         return { type: 'text', content: 'Không tìm thấy sản phẩm, vui lòng tìm sản phẩm khác ạ' };
       }
-    } else {
-      const messages = [{ role: 'system', content: SYSTEM_PROMPT }, ...(await getHistory(senderId)).slice(-6)];
+    }
+    case 'price': {
+      const targetProduct = await searchProduct(PRODUCT_DATABASE, product, category);
+      if (targetProduct) {
+        return { type: 'text', content: targetProduct.price };
+      } else {
+        return { type: 'text', content: 'Hiện tại bên em ko tìm thấy giá sản phẩm, vui lòng tìm sản phẩm khác ạ' };
+      }
+    }
+    default: {
+      // General intent or fallback to OpenAI chat
+      const messages = [
+        { role: 'system', content: SYSTEM_PROMPT },
+        ...(await getHistory(senderId)).slice(-6)
+      ];
       const chatResponse = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
         messages,
         max_tokens: 150
       });
       const responseText = chatResponse.choices[0].message.content.trim();
-      console.log(responseText);
       return { type: 'text', content: responseText };
     }
-  } catch (error) {
-    console.error('Error processing message:', error);
-    return { type: 'text', content: 'Sorry, something went wrong!' };
   }
 }
 
@@ -62,26 +82,33 @@ async function analyzeMessage(senderId, message) {
   );
 
   const prompt = `
-  Analyze the user message: ${message}
-  Context history: ${messages}
-  product context: ${productContext}
+Phân tích tin nhắn người dùng: ${message}
+Lịch sử hội thoại: ${messages}
+Ngữ cảnh sản phẩm: ${productContext}
 
-  Determine the user intent: 
-    - "image" : if user wants to ask for the picture
-    - "product_details" : if user wants to know the spec of the product
-    - "general" : for other query
-    - "price" : if user wants to know the price of the product
+Xác định ý định của người dùng:
+  "image" : nếu người dùng muốn xem hình ảnh
+  "product_details" : nếu người dùng muốn biết thông số hoặc chi tiết sản phẩm
+  "price" : nếu người dùng muốn biết giá sản phẩm
+  "general" : cho các câu hỏi khác
 
-  Extract entities:
-    - product: the specific product mentioned (e.g., "phone", "shirt"), or empty string if none. Use the last product from history if the message refers to it (e.g., "it" or "that product").
-    - category: the product category mentioned (e.g., "electronics", "clothing"), or empty string if none.
- 
-    Consider synonyms, misspellings, and natural language variations of the local Vietnamese (e.g 'đầm' or 'váy' has the same meaning).
-    Follow the communication style in the history (or default prompt if history is empty): friendly, professional, use Vietnamese, polite.
+Trích xuất thực thể:
+  product: sản phẩm cụ thể được đề cập (ví dụ: "điện thoại", "áo sơ mi"), hoặc chuỗi rỗng nếu không có.
+    - Sử dụng sản phẩm cuối cùng trong lịch sử nếu tin nhắn đề cập đến nó (ví dụ: "nó" hoặc "sản phẩm đó").
+  
+    category: danh mục sản phẩm được đề cập (ví dụ: "điện tử", "quần áo"), hoặc chuỗi rỗng nếu không có.
 
-    Return a JSON object with intent and entities (product and category).
-    Example output: { "intent": "product_details", "entities": { "product": "Đầm Midi", "category": "Áo Quần" } }
-    If no product or category is identified, return empty strings for those fields.
+Lưu ý:
+- Cân nhắc từ đồng nghĩa, lỗi chính tả, và cách diễn đạt tự nhiên trong tiếng Việt (ví dụ: "đầm" và "váy" mang cùng nghĩa)
+- Tuân theo phong cách giao tiếp trong lịch sử hội thoại (hoặc mặc định nếu không có lịch sử):
+- Thân thiện, chuyên nghiệp, sử dụng tiếng Việt, lịch sự.
+
+Định dạng đầu ra:
+Trả về đối tượng JSON với intent và entities (product và category).
+
+Ví dụ kết quả: { "intent": "product_details", "entities": { "product": "Đầm Midi", "category": "Áo Quần" } }
+Nếu không xác định được product hoặc category, trả về chuỗi rỗng cho các trường đó.
+
   `;
   const response = await openai.chat.completions.create({
     model: 'gpt-4o-mini',
