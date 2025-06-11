@@ -2,6 +2,7 @@ const { OpenAI } = require('openai');
 const { getSystemPrompt } = require('../reference/promptData');
 const {getProductDatabase} = require('../db/productInfo.js');
 const { getHistory } = require('./messageHistory');
+const { getPartialOrder, setPartialOrder, clearPartialOrder } = require('./partialOrderStore');
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -48,13 +49,17 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
       }
     }
 
-    case 'payment_info': {
-      const paymentInfo = entities.payment_info || {};
+    // ...inside handleIntent...
+    case 'order_info': {
+      // Get previous partial order for this user
+      const prevOrder = getPartialOrder(senderId);
+      // Merge new info with previous info
+      const orderInfo = { ...prevOrder, ...(entities.order_info || {}) };
+
       // List required fields
       const requiredFields = [
         'name', 'address', 'phone', 'product_name', 'color', 'size', 'quantity'
       ];
-      // Find missing fields
       const fieldNames = {
         name: 'tên người nhận',
         address: 'địa chỉ',
@@ -64,9 +69,11 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
         size: 'kích cỡ',
         quantity: 'số lượng'
       };
-      const missingFields = requiredFields.filter(field => !paymentInfo[field] || paymentInfo[field].toString().trim() === '');
+      const missingFields = requiredFields.filter(field => !orderInfo[field] || orderInfo[field].toString().trim() === '');
 
       if (missingFields.length > 0) {
+        // Save the merged partial order for next turn
+        setPartialOrder(senderId, orderInfo);
         const missingList = missingFields.map(f => fieldNames[f] || f).join(', ');
         return {
           type: 'text',
@@ -74,9 +81,10 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
         };
       }
 
-      // All fields present, save to DB
-      await savePaymentInfo(senderId, paymentInfo);
-      return { type: 'text', content: 'Thông tin đặt hàng của bạn đã được lưu. Cảm ơn ạ!' };
+      // All fields present, save to DB and clear partial order
+      await saveOrderInfo(senderId, orderInfo);
+      clearPartialOrder(senderId);
+      return { type: 'text', content: 'Thông tin đặt hàng của anh / chị đã được lưu. Cảm ơn ạ!' };
     }
     default: {
       // General intent or fallback to OpenAI chat
@@ -121,20 +129,21 @@ Xác định ý định của người dùng:
   "image" : nếu người dùng muốn xem hình ảnh
   "product_details" : nếu người dùng muốn biết thông số hoặc chi tiết sản phẩm
   "price" : nếu người dùng muốn biết giá sản phẩm
-  "payment_info" : nếu người dùng cung cấp thông tin đặt hàng (ví dụ: tên, địa chỉ, số điện thoại, tên sản phẩm, màu sắc, kích cỡ, số lượng)
+  "order_info" : nếu người dùng cung cấp thông tin đặt hàng (ví dụ: tên, địa chỉ, số điện thoại, tên sản phẩm, màu sắc, kích cỡ, số lượng)
   "general" : cho các câu hỏi khác
 
 Trích xuất thực thể:
   product: sản phẩm cụ thể được đề cập (nếu có)
   category: danh mục sản phẩm được đề cập (nếu có)
-  payment_info: object chứa các trường như name, address, phone, product_name, color, size, quantity nếu người dùng cung cấp
+  order_info: object chứa các trường như name, address, phone, product_name, color, size, quantity nếu người dùng cung cấp
 
 Lưu ý:
-- Nếu ý định là "payment_info", hãy trích xuất tất cả thông tin đặt hàng mà người dùng cung cấp.
+- Nếu ý định là "order_info", hãy trích xuất tất cả thông tin đặt hàng mà người dùng cung cấp.
+- Nếu người dùng chỉ cung cấp một phần thông tin, hãy kết hợp với thông tin đã có trong lịch sử hội thoại để hoàn thiện đơn hàng.
 - Nếu không xác định được, trả về chuỗi rỗng cho các trường đó.
 
 Định dạng đầu ra:
-{ "intent": "...", "entities": { "product": "...", "category": "...", "payment_info": { "name": "...", "address": "...", "phone": "...", "product_name": "...", "color": "...", "size": "...", "quantity": "..." } } }
+{ "intent": "...", "entities": { "product": "...", "category": "...", "order_info": { "name": "...", "address": "...", "phone": "...", "product_name": "...", "color": "...", "size": "...", "quantity": "..." } } }
 `;
 
   const response = await openai.chat.completions.create({
@@ -158,24 +167,24 @@ async function searchProduct(database, product, category) {
   );
 }
 
-async function savePaymentInfo(senderId, paymentInfo) {
+async function saveOrderInfo(senderId, orderInfo) {
   // Replace with your DB logic
   try {
     await pool.query(
-      'INSERT INTO pool.payment_info (sender_id, name, address, phone, product_name, color, size, quantity, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())',
+      'INSERT INTO pool.order_info (sender_id, name, address, phone, product_name, color, size, quantity, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())',
       [
         senderId,
-        paymentInfo.name,
-        paymentInfo.address,
-        paymentInfo.phone,
-        paymentInfo.product_name,
-        paymentInfo.color,
-        paymentInfo.size,
-        paymentInfo.quantity
+        orderInfo.name,
+        orderInfo.address,
+        orderInfo.phone,
+        orderInfo.product_name,
+        orderInfo.color,
+        orderInfo.size,
+        orderInfo.quantity
       ]
     );
   } catch (err) {
-    console.error('Error saving payment info:', err);
+    console.error('Error saving order info:', err);
   }
 }
 
