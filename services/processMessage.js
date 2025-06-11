@@ -84,7 +84,7 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
       // All fields present, save to DB and clear partial order
       await saveOrderInfo(senderId, orderInfo);
       clearPartialOrder(senderId);
-      return { type: 'text', content: 'Thông tin đặt hàng của anh / chị đã được lưu. Cảm ơn ạ!' };
+      return { type: 'order', content: 'Thông tin đặt hàng của anh / chị đã được lưu. Cảm ơn ạ!' };
     }
     default: {
       // General intent or fallback to OpenAI chat

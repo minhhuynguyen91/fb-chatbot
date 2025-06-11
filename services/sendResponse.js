@@ -18,6 +18,13 @@ async function sendResponse(senderId, response) {
         },
       },
     };
+  } else if (response.type === 'order') {
+    payload = {
+      messaging_type: "MESSAGE_TAG",
+      recipient: {id: senderId},
+      message: {text: response.content},
+      tag: "POST_PURCHASE_UPDATE",
+    };
   } else {
     payload = {
       recipient: { id: senderId },
