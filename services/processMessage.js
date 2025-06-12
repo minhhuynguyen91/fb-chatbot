@@ -143,6 +143,7 @@ Lưu ý:
 - Nếu không xác định được, trả về chuỗi rỗng cho các trường đó.
 
 Định dạng đầu ra:
+Trả về định dạng JSON
 { "intent": "...", "entities": { "product": "...", "category": "...", "order_info": { "name": "...", "address": "...", "phone": "...", "product_name": "...", "color": "...", "size": "...", "quantity": "..." } } }
 `;
 
