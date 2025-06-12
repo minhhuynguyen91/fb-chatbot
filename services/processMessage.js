@@ -19,6 +19,18 @@ async function processMessage(senderId, message) {
     }
 }
 
+// Merge only non-empty new fields into previous order
+function mergeOrderInfo(prevOrder, newInfo) {
+  const fields = ['name', 'address', 'phone', 'product_name', 'color', 'size', 'quantity'];
+  const merged = { ...prevOrder };
+  for (const field of fields) {
+    if (newInfo[field] && newInfo[field].toString().trim() !== '') {
+      merged[field] = newInfo[field];
+    }
+  }
+  return merged;
+}
+
 async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT) {
   const { intent, entities } = analysis;
   const { product, category } = entities || {};
@@ -64,8 +76,8 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
         });
       }
 
-      // Merge new info with previous info
-      const orderInfo = { ...prevOrder, ...newInfo };
+      // Merge new info with previous info, only non-empty fields overwrite
+      const orderInfo = mergeOrderInfo(prevOrder, newInfo);
 
       // List required fields
       const requiredFields = possibleFields;
@@ -95,6 +107,7 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
       clearPartialOrder(senderId);
       return { type: 'order', content: 'Thông tin đặt hàng của anh / chị đã được lưu. Cảm ơn ạ!' };
     }
+    
     default: {
       // General intent or fallback to OpenAI chat
       const messages = [
