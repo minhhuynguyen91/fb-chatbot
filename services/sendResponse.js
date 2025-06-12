@@ -1,13 +1,19 @@
 const axios = require('axios');
-const pLimit = require('p-limit');
 
 const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
-const limit = pLimit(5); // max 10 concurrent messages, adjust based on your page size
+
+let limit;
+(async () => {
+  const pLimit = (await import('p-limit')).default;
+  limit = pLimit(5); // Adjust concurrency here
+})();
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Wrapped POST function with retry + throttling
 async function postWithLimit(url, payload) {
+  while (!limit) await delay(10); // Wait until p-limit is loaded
+
   return limit(async () => {
     try {
       const response = await axios.post(url, payload);
