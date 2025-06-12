@@ -49,17 +49,26 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
       }
     }
 
-    // ...inside handleIntent...
     case 'order_info': {
       // Get previous partial order for this user
       const prevOrder = getPartialOrder(senderId);
+
+      // Try to get new info from entities.order_info, or fallback to direct fields
+      let newInfo = entities.order_info || {};
+
+      // Fallback: If order_info is empty, but a single field is present at the root, use it
+      const possibleFields = ['name', 'address', 'phone', 'product_name', 'color', 'size', 'quantity'];
+      if (Object.keys(newInfo).length === 0) {
+        possibleFields.forEach(field => {
+          if (entities[field]) newInfo[field] = entities[field];
+        });
+      }
+
       // Merge new info with previous info
-      const orderInfo = { ...prevOrder, ...(entities.order_info || {}) };
+      const orderInfo = { ...prevOrder, ...newInfo };
 
       // List required fields
-      const requiredFields = [
-        'name', 'address', 'phone', 'product_name', 'color', 'size', 'quantity'
-      ];
+      const requiredFields = possibleFields;
       const fieldNames = {
         name: 'tên người nhận',
         address: 'địa chỉ',
@@ -140,6 +149,7 @@ Trích xuất thực thể:
 Lưu ý:
 - Nếu ý định là "order_info", hãy trích xuất tất cả thông tin đặt hàng mà người dùng cung cấp.
 - Nếu người dùng chỉ cung cấp một phần thông tin, hãy kết hợp với thông tin đã có trong lịch sử hội thoại để hoàn thiện đơn hàng.
+- Nếu người dùng chỉ cung cấp một trường thông tin, hãy trả về order_info với trường đó và các trường còn lại là chuỗi rỗng.
 - Nếu không xác định được, trả về chuỗi rỗng cho các trường đó.
 
 Định dạng đầu ra:
