@@ -17,6 +17,13 @@ const { getSystemPrompt } = require('../reference/promptData');
  */
 async function handleMessage(event) {
   const senderId = event.sender.id;
+  // Only process if event.message and event.message.text exist
+  if (!event.message || !event.message.text) {
+    // Optionally, you can send a friendly fallback or just return
+    // sendMessage(senderId, 'Please send a text message to interact with the bot.');
+    return;
+  }
+
   const message = event.message.text?.toLowerCase().trim();
   let responseText;
   const SYSTEM_PROMPT = getSystemPrompt();
