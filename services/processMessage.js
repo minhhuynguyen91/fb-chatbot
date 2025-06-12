@@ -3,6 +3,7 @@ const { getSystemPrompt } = require('../reference/promptData');
 const {getProductDatabase} = require('../db/productInfo.js');
 const { getHistory } = require('./messageHistory');
 const { getPartialOrder, setPartialOrder, clearPartialOrder } = require('./partialOrderStore');
+const pool = require('../db/pool.js');
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -107,7 +108,7 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
       clearPartialOrder(senderId);
       return { type: 'order', content: 'Thông tin đặt hàng của anh / chị đã được lưu. Cảm ơn ạ!' };
     }
-    
+
     default: {
       // General intent or fallback to OpenAI chat
       const messages = [
