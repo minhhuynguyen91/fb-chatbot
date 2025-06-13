@@ -110,10 +110,39 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
       return { type: 'order', content: 'Thông tin đặt hàng đã được lưu. Cảm ơn ạ!' };
     }
 
+    case 'size': {
+      const targetProduct = await searchProduct(PRODUCT_DATABASE, product, category);
+      if(targetProduct) {
+        const message = [
+          { role: 'system', content: targetProduct.size },...(await getHistory(senderId)).slice(-6)
+        ];
+        const chatResponse = await openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          message,
+          max_tokens: 150
+        });
+        const responseText = chatResponse.choices[0].message.content.trim();
+        return { type: 'text', content: responseText };
+      } else {
+        return {type: 'text', content: 'Không tìm thấy size cho sản phẩm này, vui lòng chọn sản phẩm khác ạ!'}
+      }
+    }
+
+    case 'color': {
+      const targetProduct = await searchProduct(PRODUCT_DATABASE, product, category);
+      if (targetProduct) {
+        return { type: 'text', content: 'Đây là màu sản phẩm của em hiện có ạ\n'+ targetProduct.color };
+      } else {
+        return { type: 'text', content: 'Hiện tại bên em ko tìm thấy giá sản phẩm, vui lòng tìm sản phẩm khác ạ' };
+      }
+    }
+
     default: {
       // General intent or fallback to OpenAI chat
+      const userProfile = await getUserProfile(senderId);
+      const prompt=` ${SYSTEM_PROMPT}, luôn gọi khách hàng bằng tên ${userProfile.first_name} ${userProfile.last_name}`
       const messages = [
-        { role: 'system', content: SYSTEM_PROMPT + PRODUCT_DATABASE },
+        { role: 'system', content: prompt },
         ...(await getHistory(senderId)).slice(-6)
       ];
       const chatResponse = await openai.chat.completions.create({
@@ -130,7 +159,6 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
 async function analyzeMessage(senderId, message) {
   const SYSTEM_PROMPT = getSystemPrompt();
   const PRODUCT_DATABASE = getProductDatabase();
-  const userProfile = await getUserProfile(senderId);
 
   const messages = [{ role: 'system', content: SYSTEM_PROMPT }, ...(await getHistory(senderId)).slice(-6)];
   const result = PRODUCT_DATABASE;
@@ -150,13 +178,13 @@ const prompt = `
 Phân tích tin nhắn người dùng: ${message}
 Lịch sử hội thoại: ${messages}
 Ngữ cảnh sản phẩm: ${productContext}
-Luôn gọi khách hàng bằng tên ${userProfile.first_name} ${userProfile.last_name} thay vì anh hoặc chị
 
 Xác định ý định của người dùng:
   "image" : nếu người dùng muốn xem hình ảnh
   "product_details" : nếu người dùng muốn biết thông số hoặc chi tiết sản phẩm
   "price" : nếu người dùng muốn biết giá sản phẩm
   "size" : nếu người dùng cần hỏi kích cỡ sản phẩm dựa theo chiều cao hoặc cân nặng
+  "color" : nếu người dùng cần biết màu sắc sản phẩm
   "order_info" : nếu người dùng cung cấp thông tin đặt hàng (ví dụ: tên, địa chỉ, số điện thoại, tên sản phẩm, màu sắc, kích cỡ, số lượng)
   "general" : cho các câu hỏi khác
 
