@@ -156,6 +156,7 @@ Xác định ý định của người dùng:
   "image" : nếu người dùng muốn xem hình ảnh
   "product_details" : nếu người dùng muốn biết thông số hoặc chi tiết sản phẩm
   "price" : nếu người dùng muốn biết giá sản phẩm
+  "size" : nếu người dùng cần hỏi kích cỡ sản phẩm dựa theo chiều cao hoặc cân nặng
   "order_info" : nếu người dùng cung cấp thông tin đặt hàng (ví dụ: tên, địa chỉ, số điện thoại, tên sản phẩm, màu sắc, kích cỡ, số lượng)
   "general" : cho các câu hỏi khác
 
