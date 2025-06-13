@@ -113,12 +113,13 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
     case 'size': {
       const targetProduct = await searchProduct(PRODUCT_DATABASE, product, category);
       if(targetProduct) {
-        const message = [
-          { role: 'system', content: targetProduct.size },...(await getHistory(senderId)).slice(-6)
+        const messages = [
+          { role: 'system', content: targetProduct.size },
+          ...(await getHistory(senderId)).slice(-6)
         ];
         const chatResponse = await openai.chat.completions.create({
           model: 'gpt-4o-mini',
-          message,
+          messages,
           max_tokens: 150
         });
         const responseText = chatResponse.choices[0].message.content.trim();
