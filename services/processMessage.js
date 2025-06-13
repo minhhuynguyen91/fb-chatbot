@@ -142,7 +142,7 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
     default: {
       // General intent or fallback to OpenAI chat
       const userProfile = await getUserProfile(senderId);
-      const prompt=` ${SYSTEM_PROMPT}, luôn gọi khách hàng bằng tên ${userProfile.first_name} ${userProfile.last_name}`
+      const prompt=` ${SYSTEM_PROMPT} ${PRODUCT_DATABASE}, luôn gọi khách hàng bằng tên ${userProfile.first_name} ${userProfile.last_name}`
       const messages = [
         { role: 'system', content: prompt },
         ...(await getHistory(senderId)).slice(-6)
