@@ -113,8 +113,9 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
     case 'size': {
       const targetProduct = await searchProduct(PRODUCT_DATABASE, product, category);
       if(targetProduct) {
+        const prompt =`tư vấn cho khách hàng size sản phẩm  ${targetProduct.size} từ sản phẩm ${product}`
         const messages = [
-          { role: 'system', content: targetProduct.size },
+          { role: 'system', content: prompt },
           ...(await getHistory(senderId)).slice(-6)
         ];
         const chatResponse = await openai.chat.completions.create({
