@@ -150,7 +150,7 @@ const prompt = `
 Phân tích tin nhắn người dùng: ${message}
 Lịch sử hội thoại: ${messages}
 Ngữ cảnh sản phẩm: ${productContext}
-Luôn xưng tên với khách hàng: ${userProfile.first_name} ${userProfile.last_name}
+Luôn gọi khách hàng bằng tên ${userProfile.first_name} ${userProfile.last_name} thay vì anh hoặc chị
 
 Xác định ý định của người dùng:
   "image" : nếu người dùng muốn xem hình ảnh

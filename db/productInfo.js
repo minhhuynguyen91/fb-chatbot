@@ -23,10 +23,11 @@ function getProductDatabase()
     idxData['category'] = data[rowIdx][1];
     idxData['product'] = data[rowIdx][2];
     idxData['product_details'] = data[rowIdx][3];
-    idxData['image_url'] = data[rowIdx][4];
-    idxData['size'] = data[rowIdx][5];
-    idxData['price'] = data[rowIdx][6];
-    idxData['synonyms'] = data[rowIdx][7];
+    idxData['color'] = data[rowIdx][4];
+    idxData['image_url'] = data[rowIdx][5];
+    idxData['size'] = data[rowIdx][6];
+    idxData['price'] = data[rowIdx][7];
+    idxData['synonyms'] = data[rowIdx][8];
     PRODUCT_DATABASE.push(idxData);
   }
 
