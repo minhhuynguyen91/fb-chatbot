@@ -4,6 +4,7 @@ const {getProductDatabase} = require('../db/productInfo.js');
 const { getHistory } = require('./messageHistory');
 const { getPartialOrder, setPartialOrder, clearPartialOrder } = require('./partialOrderStore');
 const pool = require('../db/pool.js');
+const getUserProfile = require('./getUserProfile.js');
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -99,14 +100,14 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
         const missingList = missingFields.map(f => fieldNames[f] || f).join(', ');
         return {
           type: 'text',
-          content: `Anh / chị vui lòng cung cấp thêm thông tin: ${missingList}.`
+          content: `Vui lòng cung cấp thêm thông tin ạ: ${missingList}.`
         };
       }
 
       // All fields present, save to DB and clear partial order
       await saveOrderInfo(senderId, orderInfo);
       clearPartialOrder(senderId);
-      return { type: 'order', content: 'Thông tin đặt hàng của anh / chị đã được lưu. Cảm ơn ạ!' };
+      return { type: 'order', content: 'Thông tin đặt hàng đã được lưu. Cảm ơn ạ!' };
     }
 
     default: {
@@ -129,6 +130,8 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
 async function analyzeMessage(senderId, message) {
   const SYSTEM_PROMPT = getSystemPrompt();
   const PRODUCT_DATABASE = getProductDatabase();
+  const userProfile = await getUserProfile(senderId);
+
   const messages = [{ role: 'system', content: SYSTEM_PROMPT }, ...(await getHistory(senderId)).slice(-6)];
   const result = PRODUCT_DATABASE;
   const productContext = JSON.stringify(
@@ -147,6 +150,7 @@ const prompt = `
 Phân tích tin nhắn người dùng: ${message}
 Lịch sử hội thoại: ${messages}
 Ngữ cảnh sản phẩm: ${productContext}
+Luôn xưng tên với khách hàng: ${userProfile.first_name} ${userProfile.last_name}
 
 Xác định ý định của người dùng:
   "image" : nếu người dùng muốn xem hình ảnh
