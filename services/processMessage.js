@@ -113,7 +113,7 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
     case 'size': {
       const targetProduct = await searchProduct(PRODUCT_DATABASE, product, category);
       if(targetProduct) {
-        const prompt =`tư vấn cho khách hàng size sản phẩm  ${targetProduct.size} từ sản phẩm ${product}`
+        const prompt =`Tư vấn cho khách hàng dựa vào số kg và chiều cao: ${targetProduct.size}`
         const messages = [
           { role: 'system', content: prompt },
           ...(await getHistory(senderId)).slice(-6)
@@ -142,7 +142,11 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
     default: {
       // General intent or fallback to OpenAI chat
       const userProfile = await getUserProfile(senderId);
-      const prompt=` ${SYSTEM_PROMPT} ${PRODUCT_DATABASE}, luôn gọi khách hàng bằng tên ${userProfile.first_name} ${userProfile.last_name}`
+      const prompt=` 
+${SYSTEM_PROMPT} 
+Danh mục sản phẩm :${PRODUCT_DATABASE}, 
+Luôn gọi khách hàng bằng tên: ${userProfile.first_name} ${userProfile.last_name}
+`
       const messages = [
         { role: 'system', content: prompt },
         ...(await getHistory(senderId)).slice(-6)
