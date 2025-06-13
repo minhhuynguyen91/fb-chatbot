@@ -113,7 +113,7 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
     default: {
       // General intent or fallback to OpenAI chat
       const messages = [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: SYSTEM_PROMPT + PRODUCT_DATABASE },
         ...(await getHistory(senderId)).slice(-6)
       ];
       const chatResponse = await openai.chat.completions.create({
