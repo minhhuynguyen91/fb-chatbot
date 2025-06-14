@@ -49,15 +49,21 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
     case 'product_details': {
       const targetProduct = await searchProduct(PRODUCT_DATABASE, product, category);
       if (targetProduct) {
-        return { type: 'text', content: targetProduct.product_details };
+        const detailTxt = targetProduct.price && targetProduct.price.toString().trim()
+          ? targetProduct.price
+          : 'Hiện tại bên em chưa thông tin cho sản phẩm này, vui lòng liên hệ để biết thêm chi tiết ạ!';
+        return { type: 'text', content: detailTxt };
       } else {
-        return { type: 'text', content: 'Không tìm thấy sản phẩm, vui lòng tìm sản phẩm khác ạ' };
+        return { type: 'text', content: 'Hiện tại bên em ko tìm thấy thông tin của sản phẩm này' };
       }
     }
     case 'price': {
       const targetProduct = await searchProduct(PRODUCT_DATABASE, product, category);
       if (targetProduct) {
-        return { type: 'text', content: targetProduct.price };
+        const priceText = targetProduct.price && targetProduct.price.toString().trim()
+          ? targetProduct.price
+          : 'Hiện tại bên em chưa có giá cho sản phẩm này, vui lòng liên hệ để biết thêm chi tiết ạ!';
+        return { type: 'text', content: priceText };
       } else {
         return { type: 'text', content: 'Hiện tại bên em ko tìm thấy giá sản phẩm, vui lòng tìm sản phẩm khác ạ' };
       }
@@ -133,10 +139,13 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
     case 'color': {
       const targetProduct = await searchProduct(PRODUCT_DATABASE, product, category);
       if (targetProduct) {
-        return { type: 'text', content: 'Đây là màu sản phẩm của em hiện có ạ\n'+ targetProduct.color };
-      } else {
-        return { type: 'text', content: 'Hiện tại bên em ko tìm thấy giá sản phẩm, vui lòng tìm sản phẩm khác ạ' };
-      }
+       const colorTxt = targetProduct.price && targetProduct.price.toString().trim()
+            ? targetProduct.price
+            : 'Hiện tại bên em chưa có màu của sản phẩm này, vui lòng liên hệ để biết thêm chi tiết ạ';
+          return { type: 'text', content: colorTxt };
+        } else {
+          return { type: 'text', content: 'Hiện tại bên em chưa có màu của sản phẩm này, vui lòng liên hệ để biết thêm chi tiết ạ' };
+        }
     }
 
     default: {
