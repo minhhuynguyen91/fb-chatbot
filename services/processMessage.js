@@ -48,24 +48,18 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
     }
     case 'product_details': {
       const targetProduct = await searchProduct(PRODUCT_DATABASE, product, category);
-      console.log(targetProduct);
       if (targetProduct) {
-        const detailTxt = targetProduct.price && targetProduct.price.toString().trim()
-          ? targetProduct.price
-          : 'Hiện tại bên em chưa thông tin cho sản phẩm này, vui lòng liên hệ để biết thêm chi tiết ạ!';
-        return { type: 'text', content: detailTxt };
+        const detailText = (targetProduct.product_details || '').trim();
+        return { type: 'text', content: detailText || 'Hiện tại bên em chưa có thông tin cho sản phẩm này, vui lòng liên hệ để biết thêm chi tiết ạ!' };
       } else {
         return { type: 'text', content: 'Hiện tại bên em ko tìm thấy thông tin của sản phẩm này' };
       }
     }
     case 'price': {
       const targetProduct = await searchProduct(PRODUCT_DATABASE, product, category);
-      console.log(targetProduct);
       if (targetProduct) {
-        const priceText = targetProduct.price && targetProduct.price.toString().trim()
-          ? targetProduct.price
-          : 'Hiện tại bên em chưa có giá cho sản phẩm này, vui lòng liên hệ để biết thêm chi tiết ạ!';
-        return { type: 'text', content: priceText };
+        const priceText = (targetProduct.price || '').trim();
+        return { type: 'text', content: priceText || 'Hiện tại bên em chưa có giá cho sản phẩm này, vui lòng liên hệ để biết thêm chi tiết ạ!' };
       } else {
         return { type: 'text', content: 'Hiện tại bên em ko tìm thấy giá sản phẩm, vui lòng tìm sản phẩm khác ạ' };
       }
@@ -119,12 +113,25 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
     }
 
     case 'size': {
+      // Extract customer info (weight, height) from entities if available
+      const customerWeight = entities.weight || '';
+      const customerHeight = entities.height || '';
       const targetProduct = await searchProduct(PRODUCT_DATABASE, product, category);
-      console.log(targetProduct);
-      if(targetProduct) {
-        const prompt =`Tư vấn cho khách hàng dựa vào số kg và chiều cao: ${targetProduct.size}`
+
+      if (targetProduct && (customerWeight || customerHeight)) {
+        // Compose a prompt for ChatGPT to recommend a size
+        const sizePrompt = `
+    Sản phẩm: ${targetProduct.product}
+    Danh mục: ${targetProduct.category}
+    Thông tin khách hàng: ${customerWeight ? `Cân nặng: ${customerWeight}` : ''} ${customerHeight ? `Chiều cao: ${customerHeight}` : ''}
+    Bảng size sản phẩm: 
+    ${(targetProduct.size || '').trim()}
+
+    Dựa vào thông tin trên, hãy tư vấn size phù hợp cho khách hàng bằng tiếng Việt, ngắn gọn, thân thiện.
+        `.trim();
+
         const messages = [
-          { role: 'system', content: prompt },
+          { role: 'system', content: sizePrompt },
           ...(await getHistory(senderId)).slice(-6)
         ];
         const chatResponse = await openai.chat.completions.create({
@@ -134,23 +141,21 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
         });
         const responseText = chatResponse.choices[0].message.content.trim();
         return { type: 'text', content: responseText };
+      } else if (!customerWeight && !customerHeight) {
+        return { type: 'text', content: 'Bạn vui lòng cung cấp cân nặng và/hoặc chiều cao để được tư vấn size phù hợp nhé!' };
       } else {
-        return {type: 'text', content: 'Không tìm thấy size cho sản phẩm này, vui lòng chọn sản phẩm khác ạ!'}
+        return { type: 'text', content: 'Không tìm thấy sản phẩm hoặc bảng size, vui lòng chọn sản phẩm khác ạ!' };
       }
     }
 
     case 'color': {
       const targetProduct = await searchProduct(PRODUCT_DATABASE, product, category);
-      console.log(targetProduct);
-
       if (targetProduct) {
-       const colorTxt = targetProduct.price && targetProduct.price.toString().trim()
-            ? targetProduct.price
-            : 'Hiện tại bên em chưa có màu của sản phẩm này, vui lòng liên hệ để biết thêm chi tiết ạ';
-          return { type: 'text', content: colorTxt };
-        } else {
-          return { type: 'text', content: 'Hiện tại bên em chưa có màu của sản phẩm này, vui lòng liên hệ để biết thêm chi tiết ạ' };
-        }
+        const colorText = (targetProduct.color || '').trim();
+        return { type: 'text', content: colorText || 'Hiện tại bên em chưa có màu của sản phẩm này, vui lòng liên hệ để biết thêm chi tiết ạ' };
+      } else {
+        return { type: 'text', content: 'Hiện tại bên em chưa có màu của sản phẩm này, vui lòng liên hệ để biết thêm chi tiết ạ' };
+      }
     }
 
     default: {
@@ -219,6 +224,7 @@ Lưu ý:
 - Nếu người dùng chỉ cung cấp một phần thông tin, hãy kết hợp với thông tin đã có trong lịch sử hội thoại để hoàn thiện đơn hàng.
 - Nếu người dùng chỉ cung cấp một trường thông tin, hãy trả về order_info với trường đó và các trường còn lại là chuỗi rỗng.
 - Nếu ý định là "product_details", "price", "size", hoặc "color", luôn cố gắng xác định product và category từ tin nhắn hiện tại hoặc lịch sử hội thoại gần nhất. Nếu user dùng đại từ như "nó", "sản phẩm đó", hãy lấy product/category từ câu trước đó trong lịch sử.
+- Nếu ý định là "size", hãy trích xuất các trường weight (cân nặng) và height (chiều cao) từ tin nhắn người dùng nếu có.
 - Nếu không xác định được product hoặc category từ tin nhắn hiện tại, hãy lấy giá trị gần nhất từ lịch sử hội thoại (nếu có).
 - Nếu không xác định được, trả về chuỗi rỗng cho các trường đó.
 
@@ -229,6 +235,8 @@ Trả về định dạng JSON:
   "entities": {
     "product": "...",
     "category": "...",
+    "weight": "...",
+    "height": "...",
     "order_info": {
       "name": "...",
       "address": "...",
