@@ -130,6 +130,7 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
     ${(targetProduct.size || '').trim()}
 
     Dựa vào thông tin trên, hãy tư vấn size phù hợp cho khách hàng bằng tiếng Việt, ngắn gọn, thân thiện.
+    Luôn xưng bản thân là em.
         `.trim();
 
         const messages = [
@@ -144,7 +145,7 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
         const responseText = chatResponse.choices[0].message.content.trim();
         return { type: 'text', content: responseText };
       } else if (!customerWeight && !customerHeight) {
-        return { type: 'text', content: 'Bạn vui lòng cung cấp cân nặng và/hoặc chiều cao để được tư vấn size phù hợp nhé!' };
+        return { type: 'text', content: 'Vui lòng cung cấp cân nặng và/hoặc chiều cao để được tư vấn size phù hợp nhé!' };
       } else {
         return { type: 'text', content: 'Không tìm thấy sản phẩm hoặc bảng size, vui lòng chọn sản phẩm khác ạ!' };
       }
