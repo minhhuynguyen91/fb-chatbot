@@ -50,6 +50,7 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
       const targetProduct = await searchProduct(PRODUCT_DATABASE, product, category);
       if (targetProduct) {
         const detailText = (targetProduct.product_details || '').trim();
+        console.log(detailText);
         return { type: 'text', content: detailText || 'Hiện tại bên em chưa có thông tin cho sản phẩm này, vui lòng liên hệ để biết thêm chi tiết ạ!' };
       } else {
         return { type: 'text', content: 'Hiện tại bên em ko tìm thấy thông tin của sản phẩm này' };
@@ -59,6 +60,7 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
       const targetProduct = await searchProduct(PRODUCT_DATABASE, product, category);
       if (targetProduct) {
         const priceText = (targetProduct.price || '').trim();
+        console.log(priceText);
         return { type: 'text', content: priceText || 'Hiện tại bên em chưa có giá cho sản phẩm này, vui lòng liên hệ để biết thêm chi tiết ạ!' };
       } else {
         return { type: 'text', content: 'Hiện tại bên em ko tìm thấy giá sản phẩm, vui lòng tìm sản phẩm khác ạ' };
@@ -152,6 +154,7 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
       const targetProduct = await searchProduct(PRODUCT_DATABASE, product, category);
       if (targetProduct) {
         const colorText = (targetProduct.color || '').trim();
+        console.log(colorText);
         return { type: 'text', content: colorText || 'Hiện tại bên em chưa có màu của sản phẩm này, vui lòng liên hệ để biết thêm chi tiết ạ' };
       } else {
         return { type: 'text', content: 'Hiện tại bên em chưa có màu của sản phẩm này, vui lòng liên hệ để biết thêm chi tiết ạ' };
