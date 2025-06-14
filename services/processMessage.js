@@ -182,10 +182,11 @@ async function analyzeMessage(senderId, message) {
 
 const prompt = `
 Phân tích tin nhắn người dùng: ${message}
-Lịch sử hội thoại: ${messages}
+Lịch sử hội thoại: ${JSON.stringify(messages)}
 Ngữ cảnh sản phẩm: ${productContext}
 
-Xác định ý định của người dùng:
+Yêu cầu:
+- Xác định ý định của người dùng (intent):
   "image" : nếu người dùng muốn xem hình ảnh
   "product_details" : nếu người dùng muốn biết thông số hoặc chi tiết sản phẩm
   "price" : nếu người dùng muốn biết giá sản phẩm
@@ -194,7 +195,7 @@ Xác định ý định của người dùng:
   "order_info" : nếu người dùng cung cấp thông tin đặt hàng (ví dụ: tên, địa chỉ, số điện thoại, tên sản phẩm, màu sắc, kích cỡ, số lượng)
   "general" : cho các câu hỏi khác
 
-Trích xuất thực thể:
+- Trích xuất thực thể (entities):
   product: sản phẩm cụ thể được đề cập (nếu có)
   category: danh mục sản phẩm được đề cập (nếu có)
   order_info: object chứa các trường như name, address, phone, product_name, color, size, quantity nếu người dùng cung cấp
@@ -203,11 +204,28 @@ Lưu ý:
 - Nếu ý định là "order_info", hãy trích xuất tất cả thông tin đặt hàng mà người dùng cung cấp.
 - Nếu người dùng chỉ cung cấp một phần thông tin, hãy kết hợp với thông tin đã có trong lịch sử hội thoại để hoàn thiện đơn hàng.
 - Nếu người dùng chỉ cung cấp một trường thông tin, hãy trả về order_info với trường đó và các trường còn lại là chuỗi rỗng.
+- Nếu ý định là "product_details", "price", "size", hoặc "color", luôn cố gắng xác định product và category từ tin nhắn hiện tại hoặc lịch sử hội thoại gần nhất. Nếu user dùng đại từ như "nó", "sản phẩm đó", hãy lấy product/category từ câu trước đó trong lịch sử.
+- Nếu không xác định được product hoặc category từ tin nhắn hiện tại, hãy lấy giá trị gần nhất từ lịch sử hội thoại (nếu có).
 - Nếu không xác định được, trả về chuỗi rỗng cho các trường đó.
 
 Định dạng đầu ra:
-Trả về định dạng JSON
-{ "intent": "...", "entities": { "product": "...", "category": "...", "order_info": { "name": "...", "address": "...", "phone": "...", "product_name": "...", "color": "...", "size": "...", "quantity": "..." } } }
+Trả về định dạng JSON:
+{
+  "intent": "...",
+  "entities": {
+    "product": "...",
+    "category": "...",
+    "order_info": {
+      "name": "...",
+      "address": "...",
+      "phone": "...",
+      "product_name": "...",
+      "color": "...",
+      "size": "...",
+      "quantity": "..."
+    }
+  }
+}
 `;
 
   const response = await openai.chat.completions.create({
