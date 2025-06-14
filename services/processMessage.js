@@ -39,7 +39,7 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
 
   switch (intent) {
     case 'image': {
-      const image = await searchProduct(PRODUCT_DATABASE, product, category);
+      const image = (await searchProduct(PRODUCT_DATABASE, product, category))?.[0];
       if (image) {
         return { type: 'image', image_url: image.image_url };
       } else {
@@ -47,7 +47,7 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
       }
     }
     case 'product_details': {
-      const targetProduct = await searchProduct(PRODUCT_DATABASE, product, category);
+      const targetProduct = (await searchProduct(PRODUCT_DATABASE, product, category))?.[0];
       if (targetProduct) {
         const detailText = (targetProduct.product_details || '').trim();
         console.log(detailText);
@@ -57,7 +57,7 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
       }
     }
     case 'price': {
-      const targetProduct = await searchProduct(PRODUCT_DATABASE, product, category);
+      const targetProduct = (await searchProduct(PRODUCT_DATABASE, product, category))?.[0];
       if (targetProduct) {
         const priceText = (targetProduct.price || '').trim();
         console.log(priceText);
@@ -118,7 +118,7 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
       // Extract customer info (weight, height) from entities if available
       const customerWeight = entities.weight || '';
       const customerHeight = entities.height || '';
-      const targetProduct = await searchProduct(PRODUCT_DATABASE, product, category);
+      const targetProduct = (await searchProduct(PRODUCT_DATABASE, product, category))?.[0];;
 
       if (targetProduct && (customerWeight || customerHeight)) {
         // Compose a prompt for ChatGPT to recommend a size
@@ -151,7 +151,7 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
     }
 
     case 'color': {
-      const targetProduct = await searchProduct(PRODUCT_DATABASE, product, category);
+      const targetProduct = (await searchProduct(PRODUCT_DATABASE, product, category))?.[0];;
       if (targetProduct) {
         const colorText = (targetProduct.color || '').trim();
         console.log(colorText);
