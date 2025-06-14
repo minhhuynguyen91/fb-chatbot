@@ -118,7 +118,7 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
       // Extract customer info (weight, height) from entities if available
       const customerWeight = entities.weight || '';
       const customerHeight = entities.height || '';
-      const targetProduct = (await searchProduct(PRODUCT_DATABASE, product, category))?.[0];;
+      const targetProduct = (await searchProduct(PRODUCT_DATABASE, product, category))?.[0];
 
       if (targetProduct && (customerWeight || customerHeight)) {
         // Compose a prompt for ChatGPT to recommend a size
@@ -150,12 +150,21 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
       }
     }
 
+    case 'size_chart': {
+      const targetProduct = (await searchProduct(PRODUCT_DATABASE, product, category))?.[0];
+      if (targetProduct && targetProduct.size) {
+        return { type: 'text', content: `Bảng size cho sản phẩm ${targetProduct.product}:\n${targetProduct.size.trim()}` };
+      } else {
+        return { type: 'text', content: 'Hiện tại bên em chưa có bảng size cho sản phẩm này.' };
+      }
+    }
+
     case 'color': {
       const targetProduct = (await searchProduct(PRODUCT_DATABASE, product, category))?.[0];;
       if (targetProduct) {
         const colorText = (targetProduct.color || '').trim();
         console.log(colorText);
-        return { type: 'text', content: colorText || 'Hiện tại bên em chưa có màu của sản phẩm này, vui lòng liên hệ để biết thêm chi tiết ạ' };
+        return { type: 'text', content: ('Màu bên em đang có đây ạ:' + colorText )  || 'Hiện tại bên em chưa có màu của sản phẩm này, vui lòng liên hệ để biết thêm chi tiết ạ' };
       } else {
         return { type: 'text', content: 'Hiện tại bên em chưa có màu của sản phẩm này, vui lòng liên hệ để biết thêm chi tiết ạ' };
       }
@@ -212,7 +221,8 @@ Yêu cầu:
   "image" : nếu người dùng muốn xem hình ảnh
   "product_details" : nếu người dùng muốn biết thông số hoặc chi tiết sản phẩm
   "price" : nếu người dùng muốn biết giá sản phẩm
-  "size" : nếu người dùng cần hỏi kích cỡ sản phẩm dựa theo chiều cao hoặc cân nặng
+  "size_chart" : nếu người dùng chỉ muốn biết các size có sẵn của sản phẩm
+  "size" : nếu người dùng cần tư vấn size dựa trên cân nặng/chiều cao
   "color" : nếu người dùng cần biết màu sắc sản phẩm
   "order_info" : nếu người dùng cung cấp thông tin đặt hàng (ví dụ: tên, địa chỉ, số điện thoại, tên sản phẩm, màu sắc, kích cỡ, số lượng)
   "general" : cho các câu hỏi khác
@@ -227,9 +237,11 @@ Lưu ý:
 - Nếu người dùng chỉ cung cấp một phần thông tin, hãy kết hợp với thông tin đã có trong lịch sử hội thoại để hoàn thiện đơn hàng.
 - Nếu người dùng chỉ cung cấp một trường thông tin, hãy trả về order_info với trường đó và các trường còn lại là chuỗi rỗng.
 - Nếu ý định là "product_details", "price", "size", hoặc "color", luôn cố gắng xác định product và category từ tin nhắn hiện tại hoặc lịch sử hội thoại gần nhất. Nếu user dùng đại từ như "nó", "sản phẩm đó", hãy lấy product/category từ câu trước đó trong lịch sử.
-- Nếu ý định là "size", hãy trích xuất các trường weight (cân nặng) và height (chiều cao) từ tin nhắn người dùng nếu có.
+- Nếu người dùng chỉ hỏi về các size có sẵn (ví dụ: "Có size nào?", "Shop có size gì?"), đặt intent là "size_chart" và KHÔNG trích xuất weight/height.
+- Nếu người dùng hỏi tư vấn size dựa trên cân nặng/chiều cao, đặt intent là "size" và trích xuất weight/height nếu có.
 - Nếu không xác định được product hoặc category từ tin nhắn hiện tại, hãy lấy giá trị gần nhất từ lịch sử hội thoại (nếu có).
 - Nếu không xác định được, trả về chuỗi rỗng cho các trường đó.
+
 
 Định dạng đầu ra:
 Trả về định dạng JSON:
