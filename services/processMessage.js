@@ -48,6 +48,7 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
     }
     case 'product_details': {
       const targetProduct = await searchProduct(PRODUCT_DATABASE, product, category);
+      console.log(targetProduct);
       if (targetProduct) {
         const detailTxt = targetProduct.price && targetProduct.price.toString().trim()
           ? targetProduct.price
@@ -59,6 +60,7 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
     }
     case 'price': {
       const targetProduct = await searchProduct(PRODUCT_DATABASE, product, category);
+      console.log(targetProduct);
       if (targetProduct) {
         const priceText = targetProduct.price && targetProduct.price.toString().trim()
           ? targetProduct.price
@@ -118,6 +120,7 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
 
     case 'size': {
       const targetProduct = await searchProduct(PRODUCT_DATABASE, product, category);
+      console.log(targetProduct);
       if(targetProduct) {
         const prompt =`Tư vấn cho khách hàng dựa vào số kg và chiều cao: ${targetProduct.size}`
         const messages = [
@@ -138,6 +141,8 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
 
     case 'color': {
       const targetProduct = await searchProduct(PRODUCT_DATABASE, product, category);
+      console.log(targetProduct);
+
       if (targetProduct) {
        const colorTxt = targetProduct.price && targetProduct.price.toString().trim()
             ? targetProduct.price
