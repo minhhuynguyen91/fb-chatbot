@@ -62,22 +62,22 @@ async function handleTextMessage(senderId, messageText) {
   const lowerText = messageText.toLowerCase().trim();
   if (lowerText.includes('help') || lowerText.includes('menu')) {
     const helpMsg = 'Welcome! Type:\n- "info" for bot details\n- "support" for customer service\n- Any message for a smart reply from our AI';
-    sendMessage(senderId, { type: 'text', content: helpMsg });
+    sendMessage(senderId, helpMsg);
     return;
   }
   if (lowerText.includes('info')) {
     const infoMsg = 'This is a demo bot powered by ChatGPT, designed to answer your questions and assist via Messenger.';
-    sendMessage(senderId, { type: 'text', content: infoMsg });
+    sendMessage(senderId, infoMsg);
     return;
   }
   if (lowerText.includes('support')) {
     const supportMsg = 'Connecting you to our support team... For now, describe your issue, and our AI will assist!';
-    sendMessage(senderId, { type: 'text', content: supportMsg });
+    sendMessage(senderId, supportMsg);
     return;
   }
   if (isRateLimited(senderId)) {
     const rateMsg = 'You are sending messages too fast. Please wait a minute before trying again.';
-    sendMessage(senderId, { type: 'text', content: rateMsg });
+    sendMessage(senderId, rateMsg);
     return;
   }
   try {
@@ -89,7 +89,7 @@ async function handleTextMessage(senderId, messageText) {
   } catch (error) {
     console.error('Error in handleMessage:', error);
     const errMsg = 'Xin lỗi, đã có lỗi xảy ra. Vui lòng thử lại sau nhé!';
-    sendMessage(senderId, { type: 'text', content: errMsg });
+    sendMessage(senderId, errMsg);
     await storeAssistantMessage(senderId, errMsg);
   }
 }
