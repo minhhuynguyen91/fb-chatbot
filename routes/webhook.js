@@ -17,18 +17,20 @@ router.get('/', (req, res) => {
 });
 
 // Webhook event handler
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const body = req.body;
   if (body.object === 'page') {
+    const promises = [];
     body.entry.forEach(entry => {
       entry.messaging.forEach(event => {
         if (event.message) {
-          handleMessage(event);
+          promises.push(handleMessage(event));
         } else if (event.postback) {
-          handlePostback(event);
+          promises.push(handlePostback(event));
         }
       });
     });
+    await Promise.all(promises);
     res.status(200).send('EVENT_RECEIVED');
   } else {
     res.sendStatus(404);
