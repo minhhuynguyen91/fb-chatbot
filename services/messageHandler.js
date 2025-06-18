@@ -16,6 +16,8 @@ const { getProductDatabase } = require('../db/productInfo.js');
 // Cloudinary ultilities
 const { uploadToCloudinary, deleteFromCloudinary } = require('./cloudinary/cloudinaryUploader.js');
 
+const axios = require('axios');
+
 
 // --- Utility: Ensure system prompt is in history ---
 async function ensureSystemPrompt(senderId) {
@@ -142,8 +144,11 @@ async function handleMessage(event) {
 
   // If both text and image, process both
   if (imageUrl) {
+    const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+    const imageBuffer = Buffer.from(response.data, 'binary');
+
     const PRODUCT_DATABASE = getProductDatabase();
-    const { url, public_id } = await uploadToCloudinary(imageUrl);
+    const { url, public_id } = await uploadToCloudinary(imageBuffer);
     try {
       const visionResult = await compareImageWithProducts(url, PRODUCT_DATABASE);
       sendResponse(senderId, { type: 'text', content: visionResult });
