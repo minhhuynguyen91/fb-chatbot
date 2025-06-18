@@ -144,30 +144,37 @@ async function handleMessage(event) {
 
   // If both text and image, process both
   if (imageUrl) {
-    const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
-    const imageBuffer = Buffer.from(response.data, 'binary');
-
-    const PRODUCT_DATABASE = getProductDatabase();
-    const { url, public_id } = await uploadToCloudinary(imageBuffer);
     try {
-      const visionResult = await compareImageWithProducts(url, PRODUCT_DATABASE);
-      sendResponse(senderId, { type: 'text', content: visionResult });
-      await storeAssistantMessage(senderId, visionResult);
+      // Add Facebook Page Access Token to header
+      const response = await axios.get(imageUrl, {
+        responseType: 'arraybuffer',
+        headers: {
+          Authorization: `Bearer ${process.env.FB_PAGE_ACCESS_TOKEN}`,
+        },
+      });
+      const imageBuffer = Buffer.from(response.data, 'binary');
+
+      const PRODUCT_DATABASE = getProductDatabase();
+      const { url, public_id } = await uploadToCloudinary(imageBuffer);
+      try {
+        const visionResult = await compareImageWithProducts(url, PRODUCT_DATABASE);
+        sendResponse(senderId, { type: 'text', content: visionResult });
+        await storeAssistantMessage(senderId, visionResult);
+      } catch (error) {
+        console.error('OpenAI vision error:', error);
+        const errMsg = 'Xin lỗi, em không thể nhận diện ảnh này lúc này.';
+        sendResponse(senderId, { type: 'text', content: errMsg });
+        await storeAssistantMessage(senderId, errMsg);
+      } finally {
+        await deleteFromCloudinary(public_id);
+      }
     } catch (error) {
-      console.error('OpenAI vision error:', error);
-      const errMsg = 'Xin lỗi, em không thể nhận diện ảnh này lúc này.';
+      console.error('Image download error:', error);
+      const errMsg = 'Xin lỗi, em không thể tải ảnh này từ Messenger.';
       sendResponse(senderId, { type: 'text', content: errMsg });
       await storeAssistantMessage(senderId, errMsg);
-    } finally {
-      // 3. Delete the image from Cloudinary
-      await deleteFromCloudinary(public_id);
     }
-    // // Optionally, also process text if present
-    // if (messageText) {
-    //   await storeMessage(senderId, "user", messageText);
-    //   await handleTextMessage(senderId, messageText);
-    // }
-    // return;
+    return;
   }
 
   // 6. If only text (from any source)
