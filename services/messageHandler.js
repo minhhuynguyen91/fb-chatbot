@@ -106,6 +106,37 @@ async function handleMessage(event) {
   const { messageText, isQuickReply } = extractMessage(event);
   const imageUrl = extractImageUrl(event);
 
+  // If both text and image, respond with a single combined message
+  if (imageUrl && messageText) {
+    const PRODUCT_DATABASE = getProductDatabase();
+    let visionResult = '';
+    let aiResult = '';
+
+    try {
+      visionResult = await compareImageWithProducts(imageUrl, PRODUCT_DATABASE);
+    } catch (error) {
+      visionResult = 'Xin lỗi, em không thể nhận diện ảnh này lúc này.';
+    }
+
+    if (shouldStoreUserMessage(messageText)) {
+      await storeMessage(senderId, "user", messageText);
+    }
+
+    try {
+      const aiResponse = await processMessage(senderId, messageText);
+      aiResult = aiResponse && aiResponse.content ? aiResponse.content : '';
+    } catch (error) {
+      aiResult = 'Xin lỗi, đã có lỗi xảy ra. Bạn thử lại sau nhé!';
+    }
+
+    // Combine both results into one message
+    const combinedMsg = [visionResult, aiResult].filter(Boolean).join('\n\n');
+    sendResponse(senderId, { type: 'text', content: combinedMsg });
+    await storeAssistantMessage(senderId, combinedMsg);
+    return;
+  }
+
+
   // If both text and image, process both
   if (imageUrl) {
     const PRODUCT_DATABASE = getProductDatabase();
@@ -178,7 +209,7 @@ async function handlePostback(event) {
   // Fallback if nothing found
   if (!content) content = '[postback]';
 
-  await storeMessage(senderId, "user", content);
+  // await storeMessage(senderId, "user", content);
   const postbackMsg = `Received postback: ${content}. Try typing "help" for more options.`;
   sendResponse(senderId, { type: 'text', content: postbackMsg });
   await storeAssistantMessage(senderId, postbackMsg);
