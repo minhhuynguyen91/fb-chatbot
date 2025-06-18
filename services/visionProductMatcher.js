@@ -3,15 +3,31 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const { getSystemPrompt } = require('../reference/promptData');
 
 
+/**
+ * Clean and flatten product images from productList.
+ * Ensures each product image has a single, trimmed URL.
+ */
+function getCleanedProductImages(productList) {
+    return productList.flatMap(product => {
+        // Support both 'image_url' and 'url' keys for compatibility
+        const rawUrl = product.image_url || product.url || '';
+        return rawUrl
+            .split(/\s+/)
+            .map(url => url.trim())
+            .filter(url => url.length > 0)
+            .map(url => ({
+                url,
+                name: product.product || product.name || '',
+                category: product.category || ''
+            }));
+    });
+}
+
 async function compareImageWithProducts(customerImageUrl, productList) {
     const SYSTEM_PROMPT = getSystemPrompt();
 
-    // Limit to first 5 products for demo; batch if you have many products
-    const productImages = productList.slice(0, 5).map(p => ({
-        url: p.image_url,
-        name: p.product,
-        category: p.category
-    }));
+    // Clean and flatten product images
+    const productImages = getCleanedProductImages(productList);
 
     let prompt = 'Ảnh khách gửi có giống sản phẩm nào trong các ảnh sau không? Nếu có, trả về tên sản phẩm và danh mục. Nếu không, trả lời "Không tìm thấy".\n';
     productImages.forEach((p, idx) => {
@@ -21,15 +37,15 @@ async function compareImageWithProducts(customerImageUrl, productList) {
     const messages = [
         { role: 'system', content: SYSTEM_PROMPT },
         {
-        role: 'user',
-        content: [
-            { type: 'text', text: prompt },
-            { type: 'image_url', image_url: { url: customerImageUrl } },
-            ...productImages.map(p => ({
-            type: 'image_url',
-            image_url: { url: p.url }
-            }))
-        ]
+            role: 'user',
+            content: [
+                { type: 'text', text: prompt },
+                { type: 'image_url', image_url: { url: customerImageUrl } },
+                ...productImages.map(p => ({
+                    type: 'image_url',
+                    image_url: { url: p.url }
+                }))
+            ]
         }
     ];
 
