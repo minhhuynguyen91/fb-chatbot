@@ -26,8 +26,9 @@ function getCleanedProductImages(productList) {
 async function compareImageWithProducts(customerImageUrl, productList) {
     const SYSTEM_PROMPT = getSystemPrompt();
 
-    // Clean and flatten product images
-    const productImages = getCleanedProductImages(productList);
+    // Limit to 3 product images for comparison
+    const MAX_IMAGES = 3;
+    const productImages = getCleanedProductImages(productList).slice(0, MAX_IMAGES);
 
     let prompt = 'Ảnh khách gửi có giống sản phẩm nào trong các ảnh sau không? Nếu có, trả về tên sản phẩm và danh mục. Nếu không, trả lời "Không tìm thấy".\n';
     productImages.forEach((p, idx) => {
