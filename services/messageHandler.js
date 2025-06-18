@@ -112,34 +112,34 @@ async function handleMessage(event) {
   const imageUrl = extractImageUrl(event);
 
   // If both text and image, respond with a single combined message
-  if (imageUrl && messageText) {
-    const PRODUCT_DATABASE = getProductDatabase();
-    let visionResult = '';
-    let aiResult = '';
+  // if (imageUrl && messageText) {
+  //   const PRODUCT_DATABASE = getProductDatabase();
+  //   let visionResult = '';
+  //   let aiResult = '';
 
-    try {
-      visionResult = await compareImageWithProducts(imageUrl, PRODUCT_DATABASE);
-    } catch (error) {
-      visionResult = 'Xin lỗi, em không thể nhận diện ảnh này lúc này.';
-    }
+  //   try {
+  //     visionResult = await compareImageWithProducts(imageUrl, PRODUCT_DATABASE);
+  //   } catch (error) {
+  //     visionResult = 'Xin lỗi, em không thể nhận diện ảnh này lúc này.';
+  //   }
 
-    if (shouldStoreUserMessage(messageText)) {
-      await storeMessage(senderId, "user", messageText);
-    }
+  //   if (shouldStoreUserMessage(messageText)) {
+  //     await storeMessage(senderId, "user", messageText);
+  //   }
 
-    try {
-      const aiResponse = await processMessage(senderId, messageText);
-      aiResult = aiResponse && aiResponse.content ? aiResponse.content : '';
-    } catch (error) {
-      aiResult = 'Xin lỗi, đã có lỗi xảy ra. Bạn thử lại sau nhé!';
-    }
+  //   try {
+  //     const aiResponse = await processMessage(senderId, messageText);
+  //     aiResult = aiResponse && aiResponse.content ? aiResponse.content : '';
+  //   } catch (error) {
+  //     aiResult = 'Xin lỗi, đã có lỗi xảy ra. Bạn thử lại sau nhé!';
+  //   }
 
-    // Combine both results into one message
-    const combinedMsg = [visionResult, aiResult].filter(Boolean).join('\n\n');
-    sendResponse(senderId, { type: 'text', content: combinedMsg });
-    await storeAssistantMessage(senderId, combinedMsg);
-    return;
-  }
+  //   // Combine both results into one message
+  //   const combinedMsg = [visionResult, aiResult].filter(Boolean).join('\n\n');
+  //   sendResponse(senderId, { type: 'text', content: combinedMsg });
+  //   await storeAssistantMessage(senderId, combinedMsg);
+  //   return;
+  // }
 
 
   // If both text and image, process both
