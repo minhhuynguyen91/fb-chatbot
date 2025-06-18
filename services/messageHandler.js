@@ -13,6 +13,9 @@ const { compareImageWithProducts } = require('./visionProductMatcher');
 // Get product database
 const { getProductDatabase } = require('../db/productInfo.js');
 
+// Cloudinary ultilities
+const { uploadToCloudinary, deleteFromCloudinary } = require('./cloudinary/cloudinaryUploader.js');
+
 
 // --- Utility: Ensure system prompt is in history ---
 async function ensureSystemPrompt(senderId) {
@@ -140,8 +143,9 @@ async function handleMessage(event) {
   // If both text and image, process both
   if (imageUrl) {
     const PRODUCT_DATABASE = getProductDatabase();
+    const { url, public_id } = await uploadToCloudinary(imageUrl);
     try {
-      const visionResult = await compareImageWithProducts(imageUrl, PRODUCT_DATABASE);
+      const visionResult = await compareImageWithProducts(url, PRODUCT_DATABASE);
       sendResponse(senderId, { type: 'text', content: visionResult });
       await storeAssistantMessage(senderId, visionResult);
     } catch (error) {
@@ -149,13 +153,16 @@ async function handleMessage(event) {
       const errMsg = 'Xin lỗi, em không thể nhận diện ảnh này lúc này.';
       sendResponse(senderId, { type: 'text', content: errMsg });
       await storeAssistantMessage(senderId, errMsg);
+    } finally {
+      // 3. Delete the image from Cloudinary
+      await deleteFromCloudinary(public_id);
     }
-    // Optionally, also process text if present
-    if (messageText) {
-      await storeMessage(senderId, "user", messageText);
-      await handleTextMessage(senderId, messageText);
-    }
-    return;
+    // // Optionally, also process text if present
+    // if (messageText) {
+    //   await storeMessage(senderId, "user", messageText);
+    //   await handleTextMessage(senderId, messageText);
+    // }
+    // return;
   }
 
   // 6. If only text (from any source)
