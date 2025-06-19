@@ -14,7 +14,7 @@ const { compareImageWithProducts } = require('./visionProductMatcher');
 const { getProductDatabase } = require('../db/productInfo.js');
 
 // Cloudinary ultilities
-const { uploadToCloudinary, deleteFromCloudinary } = require('./cloudinary/cloudinaryUploader.js');
+const { uploadMessengerImageToCloudinary, deleteFromCloudinary } = require('./cloudinary/cloudinaryUploader');
 
 const axios = require('axios');
 
@@ -145,34 +145,23 @@ async function handleMessage(event) {
   // If both text and image, process both
   if (imageUrl) {
     try {
-      // Add Facebook Page Access Token to header
-      const response = await axios.get(imageUrl, {
-        responseType: 'arraybuffer',
-        headers: {
-          Authorization: `Bearer ${process.env.FB_PAGE_ACCESS_TOKEN}`,
-        },
-      });
-      const imageBuffer = Buffer.from(response.data, 'binary');
+      // 1. Upload Messenger image to Cloudinary
+      const { secure_url, public_id } = await uploadMessengerImageToCloudinary(imageUrl, senderId);
 
-      const PRODUCT_DATABASE = getProductDatabase();
-      const { url, public_id } = await uploadToCloudinary(imageBuffer);
-      try {
-        const visionResult = await compareImageWithProducts(url, PRODUCT_DATABASE);
-        sendResponse(senderId, { type: 'text', content: visionResult });
-        await storeAssistantMessage(senderId, visionResult);
-      } catch (error) {
-        console.error('OpenAI vision error:', error);
-        const errMsg = 'Xin lỗi, em không thể nhận diện ảnh này lúc này.';
-        sendResponse(senderId, { type: 'text', content: errMsg });
-        await storeAssistantMessage(senderId, errMsg);
-      } finally {
-        await deleteFromCloudinary(public_id);
-      }
+      // 2. Compare with products
+      const productList = getProductDatabase();
+      const result = await compareImageWithProducts(secure_url, productList);
+
+      // 3. Send result to user
+      await sendResponse(senderId, { type: 'text', content: result });
+
+      // 4. Optionally delete the image from Cloudinary
+      await deleteFromCloudinary(public_id);
+
     } catch (error) {
-      console.error('Image download error:', error);
-      const errMsg = 'Xin lỗi, em không thể tải ảnh này từ Messenger.';
-      sendResponse(senderId, { type: 'text', content: errMsg });
-      await storeAssistantMessage(senderId, errMsg);
+      console.error('Image handling error:', error.message);
+      const errMsg = 'Xin lỗi, em không thể nhận diện ảnh này lúc này.';
+      await sendResponse(senderId, { type: 'text', content: errMsg });
     }
     return;
   }
