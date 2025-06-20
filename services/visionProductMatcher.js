@@ -25,10 +25,8 @@ function getCleanedProductImages(productList) {
 
 async function compareImageWithProducts(customerImageUrl, productList) {
     const SYSTEM_PROMPT = getSystemPrompt();
-
-    // Limit to 3 product images for comparison
-    const MAX_IMAGES = 3;
-    const productImages = getCleanedProductImages(productList).slice(0, MAX_IMAGES);
+    // Remove the image limit
+    const productImages = getCleanedProductImages(productList); // No .slice()
 
     let prompt = 'Ảnh khách gửi có giống sản phẩm nào trong các ảnh sau không? Nếu có, trả về tên sản phẩm và danh mục. Nếu không, trả lời "Không tìm thấy".\n';
     productImages.forEach((p, idx) => {
@@ -53,7 +51,7 @@ async function compareImageWithProducts(customerImageUrl, productList) {
     ];
 
     const response = await openai.chat.completions.create({
-        model: 'gpt-4o',
+        model: 'gpt-4.1',
         messages,
         max_tokens: 200
     });
