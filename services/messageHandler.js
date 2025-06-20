@@ -146,8 +146,13 @@ async function handleMessage(event) {
   if (imageUrl) {
     try {
       // 1. Upload Messenger image to Cloudinary
-      const { secure_url, public_id } = await uploadMessengerImageToCloudinary(imageUrl, senderId);
+      const uploadResp = await uploadMessengerImageToCloudinary(imageUrl, senderId);
+      const secure_url = uploadResp.secure_url;
+      const public_id = uploadResp.public_id;
 
+      console.log(secure_url);
+      console.log(public_id);
+      
       // 2. Compare with products
       const productList = getProductDatabase();
       const result = await compareImageWithProducts(secure_url, productList);
@@ -156,7 +161,7 @@ async function handleMessage(event) {
       await sendResponse(senderId, { type: 'text', content: result });
 
       // 4. Optionally delete the image from Cloudinary
-      await deleteFromCloudinary(public_id);
+      //await deleteFromCloudinary(public_id);
 
     } catch (error) {
       console.error('Image handling error:', error.message);

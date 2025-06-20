@@ -35,6 +35,8 @@ async function compareImageWithProducts(customerImageUrl, productList) {
         prompt += `Ảnh ${idx + 1}: ${p.name} (${p.category})\n`;
     });
 
+    console.log(prompt);
+    console.log(productImages);
     const messages = [
         { role: 'system', content: SYSTEM_PROMPT },
         {
