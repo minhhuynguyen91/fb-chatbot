@@ -150,8 +150,8 @@ async function handleMessage(event) {
       const secure_url = uploadResp.secure_url;
       const public_id = uploadResp.public_id;
 
-      console.log(secure_url);
-      console.log(public_id);
+      // console.log(secure_url);
+      // console.log(public_id);
       
       // 2. Compare with products
       const productList = getProductDatabase();
