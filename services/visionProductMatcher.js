@@ -28,7 +28,9 @@ async function compareImageWithProducts(customerImageUrl, productList) {
     const productImages = getCleanedProductImages(productList);
 
     let prompt = `Dưới đây là một ảnh khách gửi (Ảnh khách), tiếp theo là các ảnh sản phẩm được đánh số từ 1 đến ${productImages.length}. 
-Nhiệm vụ của bạn: So sánh Ảnh khách với từng ảnh sản phẩm theo thứ tự. Nếu có ảnh sản phẩm nào giống Ảnh khách, chỉ trả về tên sản phẩm và danh mục của ảnh trùng khớp đầu tiên. Nếu không, trả lời "Không tìm thấy".\n`;
+Nhiệm vụ của bạn: So sánh Ảnh khách với từng ảnh sản phẩm theo thứ tự. Nếu có ảnh sản phẩm nào giống Ảnh khách, chỉ trả về tên sản phẩm và danh mục của ảnh trùng khớp đầu tiên. Giọng điệu thân thiện với khách
+
+Nếu không, trả lời "Dạ, em không tìm thấy".\n`;
 
     productImages.forEach((p, idx) => {
         prompt += `Ảnh ${idx + 1}: ${p.name} (${p.category})\n`;
