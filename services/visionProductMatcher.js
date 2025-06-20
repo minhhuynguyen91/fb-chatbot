@@ -28,7 +28,7 @@ async function compareImageWithProducts(customerImageUrl, productList) {
     // Remove the image limit
     const productImages = getCleanedProductImages(productList); // No .slice()
 
-    let prompt = 'Ảnh khách gửi có giống sản phẩm nào trong các ảnh sau không? Nếu có, trả về số thứ tự ảnh, tên sản phẩm và danh mục cho từng ảnh trùng khớp. Nếu không, trả lời "Không tìm thấy".\n';
+    let prompt = 'Ảnh khách gửi có giống sản phẩm nào trong các ảnh sau không? Nếu có, chỉ trả về tên sản phẩm và danh mục của ảnh trùng khớp đầu tiên. Nếu không, trả lời "Không tìm thấy".\n';
     productImages.forEach((p, idx) => {
         prompt += `Ảnh ${idx + 1}: ${p.name} (${p.category})\n`;
     });
