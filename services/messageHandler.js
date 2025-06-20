@@ -161,7 +161,7 @@ async function handleMessage(event) {
       await sendResponse(senderId, { type: 'text', content: result });
 
       // 4. Optionally delete the image from Cloudinary
-      //await deleteFromCloudinary(public_id);
+      await deleteFromCloudinary(public_id);
 
     } catch (error) {
       console.error('Image handling error:', error.message);
