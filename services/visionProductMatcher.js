@@ -27,8 +27,9 @@ async function compareImageWithProducts(customerImageUrl, productList) {
     const SYSTEM_PROMPT = getSystemPrompt();
     const productImages = getCleanedProductImages(productList);
 
-    let prompt = `Ảnh khách gửi là ảnh đầu tiên bên dưới. Các ảnh sản phẩm được đánh số thứ tự từ 1 đến ${productImages.length} theo thứ tự xuất hiện tiếp theo. 
-Hãy xác định xem ảnh khách gửi có giống ảnh sản phẩm nào không. Nếu có, chỉ trả về tên sản phẩm và danh mục của ảnh trùng khớp đầu tiên. Nếu không, trả lời "Không tìm thấy".\n`;
+    let prompt = `Dưới đây là một ảnh khách gửi (Ảnh khách), tiếp theo là các ảnh sản phẩm được đánh số từ 1 đến ${productImages.length}. 
+Nhiệm vụ của bạn: So sánh Ảnh khách với từng ảnh sản phẩm theo thứ tự. Nếu có ảnh sản phẩm nào giống Ảnh khách, chỉ trả về tên sản phẩm và danh mục của ảnh trùng khớp đầu tiên. Nếu không, trả lời "Không tìm thấy".\n`;
+
     productImages.forEach((p, idx) => {
         prompt += `Ảnh ${idx + 1}: ${p.name} (${p.category})\n`;
     });
@@ -36,19 +37,21 @@ Hãy xác định xem ảnh khách gửi có giống ảnh sản phẩm nào kh�
     console.log(prompt);
     console.log(productImages);
 
+    // Build the message array with explicit text before each image
+    const content = [
+        { type: 'text', text: prompt },
+        { type: 'text', text: 'Ảnh khách:' },
+        { type: 'image_url', image_url: { url: customerImageUrl } },
+    ];
+
+    productImages.forEach((p, idx) => {
+        content.push({ type: 'text', text: `Ảnh ${idx + 1}: ${p.name} (${p.category})` });
+        content.push({ type: 'image_url', image_url: { url: p.url } });
+    });
+
     const messages = [
         { role: 'system', content: SYSTEM_PROMPT },
-        {
-            role: 'user',
-            content: [
-                { type: 'text', text: prompt },
-                { type: 'image_url', image_url: { url: customerImageUrl } },
-                ...productImages.map(p => ({
-                    type: 'image_url',
-                    image_url: { url: p.url }
-                }))
-            ]
-        }
+        { role: 'user', content }
     ];
 
     const response = await openai.chat.completions.create({
