@@ -25,16 +25,17 @@ function getCleanedProductImages(productList) {
 
 async function compareImageWithProducts(customerImageUrl, productList) {
     const SYSTEM_PROMPT = getSystemPrompt();
-    // Remove the image limit
-    const productImages = getCleanedProductImages(productList); // No .slice()
+    const productImages = getCleanedProductImages(productList);
 
-    let prompt = 'Ảnh khách gửi có giống sản phẩm nào trong các ảnh sau không? Nếu có, chỉ trả về tên sản phẩm và danh mục của ảnh trùng khớp đầu tiên. Nếu không, trả lời "Không tìm thấy".\n';
+    let prompt = `Ảnh khách gửi là ảnh đầu tiên bên dưới. Các ảnh sản phẩm được đánh số thứ tự từ 1 đến ${productImages.length} theo thứ tự xuất hiện tiếp theo. 
+Hãy xác định xem ảnh khách gửi có giống ảnh sản phẩm nào không. Nếu có, chỉ trả về tên sản phẩm và danh mục của ảnh trùng khớp đầu tiên. Nếu không, trả lời "Không tìm thấy".\n`;
     productImages.forEach((p, idx) => {
         prompt += `Ảnh ${idx + 1}: ${p.name} (${p.category})\n`;
     });
 
     console.log(prompt);
     console.log(productImages);
+
     const messages = [
         { role: 'system', content: SYSTEM_PROMPT },
         {
