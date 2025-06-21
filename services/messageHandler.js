@@ -127,7 +127,7 @@ async function handleMessage(event) {
   // Store or update pending event with a unique key based on senderId and time window
   const eventKey = `${senderId}_${Math.floor(Date.now() / MESSAGE_TIMEOUT)}`; // Group by 5-second window
   if (!pendingEvents.has(eventKey)) {
-    pendingEvents.set(eventKey, { events: [], lock: false, resolve: null, timestamp: Date.now() });
+    pendingEvents.set(eventKey, { events: [], lock: false, resolve: null, processed: false, timestamp: Date.now() });
   }
 
   const pending = pendingEvents.get(eventKey);
@@ -149,31 +149,25 @@ async function handleMessage(event) {
   pending.events.push({ messageText, imageUrl, timestamp: Date.now() });
   console.log('Pending events updated for key:', eventKey, JSON.stringify(pending.events, null, 2));
 
-  // If locked, wait for resolution before processing
-  if (pending.lock) {
-    await pending.resolve;
-  }
-
-  // Process events after lock resolution or if no lock
-  if (!pending.processing) {
-    pending.processing = true;
+  // Process events only if not already processed
+  if (!pending.processed) {
+    if (pending.lock) {
+      await pending.resolve; // Wait for lock resolution
+    }
     await processPendingEvents(eventKey);
-    pending.processing = false;
+    pending.processed = true; // Mark as processed to prevent re-execution
   }
 
   return;
 
   async function processPendingEvents(eventKey) {
     const pending = pendingEvents.get(eventKey);
-    if (!pending || !pending.events.length) {
-      console.warn('No pending events found for:', eventKey);
+    if (!pending || !pending.events.length || pending.processed) {
+      console.warn('No pending events or already processed for:', eventKey);
       return;
     }
 
     const allEvents = pending.events;
-    processedMessages.add(eventKey);
-    pendingEvents.delete(eventKey);
-
     // Aggregate text and imageUrl from all events
     let text = '';
     let imageUrl = '';
@@ -217,6 +211,8 @@ async function handleMessage(event) {
       const errMsg = 'Xin lỗi, em không thể xử lý tin nhắn này lúc này.';
       await sendResponse(senderId, { type: 'text', content: errMsg });
       await storeAssistantMessage(senderId, errMsg);
+    } finally {
+      pendingEvents.delete(eventKey); // Ensure cleanup
     }
   }
 }
