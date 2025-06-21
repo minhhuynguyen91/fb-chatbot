@@ -150,13 +150,11 @@ async function handleMessage(event) {
   pending.events.push({ messageText, imageUrl, timestamp: Date.now() });
   console.log('Pending events updated for sender:', senderId, JSON.stringify(pending.events, null, 2));
 
-  // Wait for lock resolution before any processing
+  // Wait for lock resolution before any processing decision
   if (pending.lock) {
     await pending.resolve; // Hold all events until timeout if lock is set
-  }
-
-  // Process events only if not already processed
-  if (!pending.processed) {
+  } else if (!pending.processed && pending.events.length === 1 && !imageUrl) {
+    // Process immediately only if no lock and first event with no image
     pending.processed = true;
     await processPendingEvents(senderId);
   }
@@ -203,7 +201,7 @@ async function handleMessage(event) {
         await storeAssistantMessage(senderId, combinedMsg); // Store combined result
         await deleteFromCloudinary(public_id);
       }
-      // Handle text only (if no image)
+      // Handle text only (if no image and processed immediately)
       else if (text) {
         console.log('Processing text only for:', senderId);
         if (shouldStoreUserMessage(text)) {
