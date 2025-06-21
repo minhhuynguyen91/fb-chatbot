@@ -134,7 +134,7 @@ async function handleMessage(event) {
   const { messageText, isQuickReply } = extractMessage(event) || { messageText: '', isQuickReply: false };
   const imageUrl = extractImageUrl(event);
 
-  // Set or maintain lock if image is detected
+  // Set lock if image is detected (retroactively applies to all events in key)
   if (imageUrl) {
     if (!pending.lock) {
       pending.lock = true;
@@ -153,9 +153,9 @@ async function handleMessage(event) {
   pending.events.push({ messageText, imageUrl, timestamp: Date.now() });
   console.log('Pending events updated for key:', eventKey, JSON.stringify(pending.events, null, 2));
 
-  // Wait for lock resolution before processing (even for initial text)
-  if (pending.lock || imageUrl) {
-    await pending.resolve; // Hold all events until timeout if image is involved
+  // Wait for lock resolution before any processing
+  if (pending.lock) {
+    await pending.resolve; // Hold all events until timeout if lock is set
   }
 
   // Process events only if not already processed
@@ -198,10 +198,12 @@ async function handleMessage(event) {
 
         const productList = getProductDatabase();
         const visionResult = await compareImageWithProducts(secure_url, productList);
-        const combinedMsg = visionResult; // Use only the vision result
-
+        let combinedMsg = visionResult;
+        if (text) {
+          combinedMsg = `Dạ, ${text} Em nhận diện được sản phẩm giống với ảnh là:\n${visionResult}`;
+        }
         await sendResponse(senderId, { type: 'text', content: combinedMsg });
-        await storeAssistantMessage(senderId, combinedMsg); // Store only visionResult
+        await storeAssistantMessage(senderId, combinedMsg); // Store combined result
         await deleteFromCloudinary(public_id);
       }
       // Handle text only (if no image)
