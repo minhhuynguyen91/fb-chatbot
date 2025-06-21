@@ -116,7 +116,7 @@ async function handleMessage(event) {
   const senderId = event.sender.id;
   await ensureSystemPrompt(senderId);
 
-// Extract message ID (mid) for grouping events, fallback to senderId + timestamp
+  // Extract message ID (mid) for grouping events, fallback to senderId + timestamp
   const messageId = event.message?.mid || `${senderId}_${Date.now()}`;
   console.log('Processing messageId:', messageId, 'Event:', JSON.stringify(event, null, 2));
 
@@ -180,10 +180,9 @@ async function handleMessage(event) {
 
         const productList = getProductDatabase();
         const visionResult = await compareImageWithProducts(secure_url, productList);
-        const aiResponse = await processMessage(senderId, text);
-        const aiResult = aiResponse && aiResponse.content ? aiResponse.content : 'Dạ, em sẽ cố gắng trả lời câu hỏi của chị!';
+        // Removed aiResponse and aiResult, using only visionResult
+        const combinedMsg = visionResult; // Use only the vision result
 
-        const combinedMsg = [visionResult, aiResult].filter(Boolean).join('\n\n');
         await sendResponse(senderId, { type: 'text', content: combinedMsg });
         await storeAssistantMessage(senderId, combinedMsg);
         await deleteFromCloudinary(public_id);
