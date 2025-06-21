@@ -153,7 +153,8 @@ async function handleMessage(event) {
     processedMessages.add(messageId);
     pendingEvents.delete(messageId);
 
-    const { text, imageUrl } = pending.event;
+    // Use pending.text and pending.imageUrl instead of pending.event.text and pending.event.imageUrl
+    const { text, imageUrl } = pending;
     if (!text && !imageUrl) {
       console.warn('No text or image to process for:', messageId);
       return;
