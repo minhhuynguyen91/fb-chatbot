@@ -134,7 +134,7 @@ async function handleMessage(event) {
   const { messageText, isQuickReply } = extractMessage(event) || { messageText: '', isQuickReply: false };
   const imageUrl = extractImageUrl(event);
 
-  // If image is detected, lock the process and wait for text
+  // Set lock if image is detected (or maintain if already locked)
   if (imageUrl && !pending.lock) {
     pending.lock = true;
     pending.resolve = new Promise((resolve) => {
@@ -144,26 +144,30 @@ async function handleMessage(event) {
       }, MESSAGE_TIMEOUT);
     });
     console.log('Image detected, locking process for:', eventKey);
+  } else if (pending.lock) {
+    console.log('Process already locked for:', eventKey);
   }
 
   pending.events.push({ messageText, imageUrl, timestamp: Date.now() });
   console.log('Pending events updated for key:', eventKey, JSON.stringify(pending.events, null, 2));
 
+  // Wait for lock resolution before processing
+  if (pending.lock) {
+    await pending.resolve; // Hold all events until timeout
+  }
+
   // Process events only if not already processed
   if (!pending.processed) {
-    if (pending.lock) {
-      await pending.resolve; // Wait for lock resolution
-    }
+    pending.processed = true;
     await processPendingEvents(eventKey);
-    pending.processed = true; // Mark as processed to prevent re-execution
   }
 
   return;
 
   async function processPendingEvents(eventKey) {
     const pending = pendingEvents.get(eventKey);
-    if (!pending || !pending.events.length || pending.processed) {
-      console.warn('No pending events or already processed for:', eventKey);
+    if (!pending || !pending.events.length) {
+      console.warn('No pending events found for:', eventKey);
       return;
     }
 
@@ -183,7 +187,7 @@ async function handleMessage(event) {
     }
 
     try {
-      // Handle combined text and image (prioritize image)
+      // Handle combined text and image (prioritize image if present)
       if (imageUrl) {
         console.log('Processing image (with optional text) for:', eventKey);
         const uploadResp = await uploadMessengerImageToCloudinary(imageUrl, senderId);
@@ -212,7 +216,7 @@ async function handleMessage(event) {
       await sendResponse(senderId, { type: 'text', content: errMsg });
       await storeAssistantMessage(senderId, errMsg);
     } finally {
-      pendingEvents.delete(eventKey); // Ensure cleanup
+      pendingEvents.delete(eventKey); // Clean up after processing
     }
   }
 }
