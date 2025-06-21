@@ -134,26 +134,28 @@ async function handleMessage(event) {
   const { messageText, isQuickReply } = extractMessage(event) || { messageText: '', isQuickReply: false };
   const imageUrl = extractImageUrl(event);
 
-  // Set lock if image is detected (or maintain if already locked)
-  if (imageUrl && !pending.lock) {
-    pending.lock = true;
-    pending.resolve = new Promise((resolve) => {
-      setTimeout(() => {
-        resolve();
-        pending.lock = false; // Unlock after timeout
-      }, MESSAGE_TIMEOUT);
-    });
-    console.log('Image detected, locking process for:', eventKey);
-  } else if (pending.lock) {
-    console.log('Process already locked for:', eventKey);
+  // Set or maintain lock if image is detected
+  if (imageUrl) {
+    if (!pending.lock) {
+      pending.lock = true;
+      pending.resolve = new Promise((resolve) => {
+        setTimeout(() => {
+          resolve();
+          pending.lock = false; // Unlock after timeout
+        }, MESSAGE_TIMEOUT);
+      });
+      console.log('Image detected, locking process for:', eventKey);
+    } else {
+      console.log('Process already locked for:', eventKey);
+    }
   }
 
   pending.events.push({ messageText, imageUrl, timestamp: Date.now() });
   console.log('Pending events updated for key:', eventKey, JSON.stringify(pending.events, null, 2));
 
-  // Wait for lock resolution before processing
-  if (pending.lock) {
-    await pending.resolve; // Hold all events until timeout
+  // Wait for lock resolution before processing (even for initial text)
+  if (pending.lock || imageUrl) {
+    await pending.resolve; // Hold all events until timeout if image is involved
   }
 
   // Process events only if not already processed
