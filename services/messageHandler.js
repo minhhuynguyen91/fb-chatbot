@@ -134,6 +134,7 @@ async function handleMessage(event) {
   const imageUrl = extractImageUrl(event);
 
   // Set lock if image is detected (applies to all events for this sender)
+  let lockSet = false;
   if (imageUrl && !pending.lock) {
     pending.lock = true;
     pending.resolve = new Promise((resolve) => {
@@ -143,18 +144,22 @@ async function handleMessage(event) {
       }, MESSAGE_TIMEOUT);
     });
     console.log('Image detected, locking process for sender:', senderId);
+    lockSet = true;
   } else if (pending.lock) {
     console.log('Process already locked for sender:', senderId);
+    lockSet = true;
   }
 
   pending.events.push({ messageText, imageUrl, timestamp: Date.now() });
   console.log('Pending events updated for sender:', senderId, JSON.stringify(pending.events, null, 2));
 
-  // Wait for lock resolution before any processing decision
-  if (pending.lock) {
-    await pending.resolve; // Hold all events until timeout if lock is set
-  } else if (!pending.processed && pending.events.length === 1 && !imageUrl) {
-    // Process immediately only if no lock and first event with no image
+  // Wait for lock resolution before any processing
+  if (lockSet) {
+    await pending.resolve; // Hold all events until timeout if lock is set or might be set
+  }
+
+  // Process events only if not already processed, after waiting for lock
+  if (!pending.processed) {
     pending.processed = true;
     await processPendingEvents(senderId);
   }
@@ -201,7 +206,7 @@ async function handleMessage(event) {
         await storeAssistantMessage(senderId, combinedMsg); // Store combined result
         await deleteFromCloudinary(public_id);
       }
-      // Handle text only (if no image and processed immediately)
+      // Handle text only (if no image and no lock was set)
       else if (text) {
         console.log('Processing text only for:', senderId);
         if (shouldStoreUserMessage(text)) {
