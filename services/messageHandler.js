@@ -16,8 +16,9 @@ const { getProductDatabase } = require('../db/productInfo.js');
 // Cloudinary ultilities
 const { uploadMessengerImageToCloudinary, deleteFromCloudinary } = require('./cloudinary/cloudinaryUploader');
 
-const axios = require('axios');
-
+// Store recent message IDs or timestamps to deduplicate events
+const processedMessages = new Set();
+const MESSAGE_TIMEOUT = 5000; // 5 seconds to group events
 
 // --- Utility: Ensure system prompt is in history ---
 async function ensureSystemPrompt(senderId) {
@@ -108,41 +109,61 @@ async function handleMessage(event) {
   const senderId = event.sender.id;
   await ensureSystemPrompt(senderId);
 
+  // Extract message ID or use timestamp as a fallback for deduplication
+  const messageId = event.message?.mid || `${senderId}_${event.timestamp}`;
+
+  // Skip if message was recently processed
+  if (processedMessages.has(messageId)) {
+    return;
+  }
+
+  // Add message ID to processed set and clean up after timeout
+  processedMessages.add(messageId);
+  setTimeout(() => processedMessages.delete(messageId), MESSAGE_TIMEOUT);
+
   const { messageText, isQuickReply } = extractMessage(event);
   const imageUrl = extractImageUrl(event);
 
-  // If both text and image, respond with a single combined message
-  // if (imageUrl && messageText) {
-  //   const PRODUCT_DATABASE = getProductDatabase();
-  //   let visionResult = '';
-  //   let aiResult = '';
+// If both text and image are present, handle them together
+  if (imageUrl && messageText) {
+    try {
+      // 1. Store user text message
+      if (shouldStoreUserMessage(messageText)) {
+        await storeMessage(senderId, "user", messageText);
+      }
 
-  //   try {
-  //     visionResult = await compareImageWithProducts(imageUrl, PRODUCT_DATABASE);
-  //   } catch (error) {
-  //     visionResult = 'Xin lỗi, em không thể nhận diện ảnh này lúc này.';
-  //   }
+      // 2. Upload image to Cloudinary
+      const uploadResp = await uploadMessengerImageToCloudinary(imageUrl, senderId);
+      const secure_url = uploadResp.secure_url;
+      const public_id = uploadResp.public_id;
 
-  //   if (shouldStoreUserMessage(messageText)) {
-  //     await storeMessage(senderId, "user", messageText);
-  //   }
+      // 3. Compare image with products
+      const productList = getProductDatabase();
+      const visionResult = await compareImageWithProducts(secure_url, productList);
 
-  //   try {
-  //     const aiResponse = await processMessage(senderId, messageText);
-  //     aiResult = aiResponse && aiResponse.content ? aiResponse.content : '';
-  //   } catch (error) {
-  //     aiResult = 'Xin lỗi, đã có lỗi xảy ra. Bạn thử lại sau nhé!';
-  //   }
+      // 4. Process text message
+      const aiResponse = await processMessage(senderId, messageText);
+      const aiResult = aiResponse && aiResponse.content ? aiResponse.content : '';
 
-  //   // Combine both results into one message
-  //   const combinedMsg = [visionResult, aiResult].filter(Boolean).join('\n\n');
-  //   sendResponse(senderId, { type: 'text', content: combinedMsg });
-  //   await storeAssistantMessage(senderId, combinedMsg);
-  //   return;
-  // }
+      // 5. Combine results
+      const combinedMsg = [visionResult, aiResult].filter(Boolean).join('\n\n');
 
+      // 6. Send combined response
+      await sendResponse(senderId, { type: 'text', content: combinedMsg });
+      await storeAssistantMessage(senderId, combinedMsg);
 
-  // If both text and image, process both
+      // 7. Delete image from Cloudinary
+      await deleteFromCloudinary(public_id);
+    } catch (error) {
+      console.error('Combined text and image handling error:', error.message);
+      const errMsg = 'Xin lỗi, em không thể xử lý ảnh và tin nhắn này lúc này.';
+      await sendResponse(senderId, { type: 'text', content: errMsg });
+      await storeAssistantMessage(senderId, errMsg);
+    }
+    return;
+  }
+
+  // If only image is present
   if (imageUrl) {
     try {
       // 1. Upload Messenger image to Cloudinary
