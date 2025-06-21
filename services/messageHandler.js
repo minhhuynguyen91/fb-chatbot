@@ -19,7 +19,7 @@ const { uploadMessengerImageToCloudinary, deleteFromCloudinary } = require('./cl
 // Store recent message IDs and their pending events
 const processedMessages = new Set();
 const pendingEvents = new Map();
-const MESSAGE_TIMEOUT = 5000; // 5 seconds to group events
+const MESSAGE_TIMEOUT = 3000; // Reduced to 3 seconds for faster response
 
 // Define shouldStoreUserMessage
 function shouldStoreUserMessage(messageText) {
@@ -59,7 +59,7 @@ function extractImageUrl(event) {
       }
     }
   }
-  return null;
+  return '';
 }
 
 // --- Utility: Store assistant message ---
@@ -116,9 +116,9 @@ async function handleMessage(event) {
   const senderId = event.sender.id;
   await ensureSystemPrompt(senderId);
 
-  // Extract message ID (mid) for grouping events, fallback to timestamp if missing
+  // Extract message ID (mid) for grouping events, fallback to timestamp
   const messageId = event.message?.mid || `${senderId}_${Date.now()}`;
-  console.log('Processing messageId:', messageId);
+  console.log('Processing messageId:', messageId, 'Event:', JSON.stringify(event, null, 2));
 
   // Skip if message was recently processed
   if (processedMessages.has(messageId)) {
@@ -128,16 +128,16 @@ async function handleMessage(event) {
 
   // Store or update pending event
   if (!pendingEvents.has(messageId)) {
-    pendingEvents.set(messageId, { event, text: '', imageUrl: '' });
+    pendingEvents.set(messageId, { event, text: '', imageUrl: '', timestamp: Date.now() });
     setTimeout(() => processPendingEvents(messageId), MESSAGE_TIMEOUT);
   }
 
   const { messageText, isQuickReply } = extractMessage(event) || { messageText: '', isQuickReply: false };
-  const imageUrl = extractImageUrl(event) || '';
+  const imageUrl = extractImageUrl(event);
 
   const pending = pendingEvents.get(messageId);
-  if (messageText) pending.text = messageText;
-  if (imageUrl) pending.imageUrl = imageUrl;
+  if (messageText) pending.text = messageText || pending.text; // Preserve existing text if updated
+  if (imageUrl) pending.imageUrl = imageUrl || pending.imageUrl; // Preserve existing imageUrl if updated
 
   console.log('Pending event updated:', JSON.stringify(pending, null, 2));
 
@@ -153,8 +153,9 @@ async function handleMessage(event) {
     processedMessages.add(messageId);
     pendingEvents.delete(messageId);
 
-    // Use pending.text and pending.imageUrl instead of pending.event.text and pending.event.imageUrl
     const { text, imageUrl } = pending;
+    console.log('Processing pending event:', { text, imageUrl });
+
     if (!text && !imageUrl) {
       console.warn('No text or image to process for:', messageId);
       return;
@@ -163,6 +164,7 @@ async function handleMessage(event) {
     try {
       // Handle combined text and image
       if (imageUrl && text) {
+        console.log('Processing combined text and image for:', messageId);
         if (shouldStoreUserMessage(text)) {
           await storeMessage(senderId, "user", text);
         }
@@ -173,7 +175,7 @@ async function handleMessage(event) {
         const productList = getProductDatabase();
         const visionResult = await compareImageWithProducts(secure_url, productList);
         const aiResponse = await processMessage(senderId, text);
-        const aiResult = aiResponse && aiResponse.content ? aiResponse.content : '';
+        const aiResult = aiResponse && aiResponse.content ? aiResponse.content : 'Dạ, em sẽ cố gắng trả lời câu hỏi của chị!';
 
         const combinedMsg = [visionResult, aiResult].filter(Boolean).join('\n\n');
         await sendResponse(senderId, { type: 'text', content: combinedMsg });
@@ -182,19 +184,20 @@ async function handleMessage(event) {
       }
       // Handle image only
       else if (imageUrl) {
+        console.log('Processing image only for:', messageId);
         const uploadResp = await uploadMessengerImageToCloudinary(imageUrl, senderId);
         const secure_url = uploadResp.secure_url;
         const public_id = uploadResp.public_id;
 
         const productList = getProductDatabase();
         const result = await compareImageWithProducts(secure_url, productList);
-
         await sendResponse(senderId, { type: 'text', content: result });
         await storeAssistantMessage(senderId, result);
         await deleteFromCloudinary(public_id);
       }
       // Handle text only
       else if (text) {
+        console.log('Processing text only for:', messageId);
         if (shouldStoreUserMessage(text)) {
           await storeMessage(senderId, "user", text);
         }
