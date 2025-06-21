@@ -36,8 +36,8 @@ Nếu không, trả lời "Dạ, em không tìm thấy".\n`;
         prompt += `Ảnh ${idx + 1}: ${p.name} (${p.category})\n`;
     });
 
-    console.log(prompt);
-    console.log(productImages);
+    // console.log(prompt);
+    // console.log(productImages);
 
     // Build the message array with explicit text before each image
     const content = [

@@ -16,9 +16,17 @@ const { getProductDatabase } = require('../db/productInfo.js');
 // Cloudinary ultilities
 const { uploadMessengerImageToCloudinary, deleteFromCloudinary } = require('./cloudinary/cloudinaryUploader');
 
-// Store recent message IDs or timestamps to deduplicate events
+// Store recent message IDs and their pending events
 const processedMessages = new Set();
+const pendingEvents = new Map();
 const MESSAGE_TIMEOUT = 5000; // 5 seconds to group events
+
+// Define shouldStoreUserMessage
+function shouldStoreUserMessage(messageText) {
+  return messageText && messageText.trim() !== '' && !messageText.startsWith('/');
+}
+
+
 
 // --- Utility: Ensure system prompt is in history ---
 async function ensureSystemPrompt(senderId) {
@@ -109,27 +117,52 @@ async function handleMessage(event) {
   const senderId = event.sender.id;
   await ensureSystemPrompt(senderId);
 
-  // Extract message ID or use timestamp as a fallback for deduplication
-  const messageId = event.message?.mid || `${senderId}_${event.timestamp}`;
+  // Extract message ID (mid) for grouping events
+  const messageId = event.message?.mid;
+  if (!messageId) {
+    console.log('No message ID found, processing as standalone event');
+    await processStandaloneEvent(event);
+    return;
+  }
 
   // Skip if message was recently processed
   if (processedMessages.has(messageId)) {
     return;
   }
 
-  // Add message ID to processed set and clean up after timeout
-  processedMessages.add(messageId);
-  setTimeout(() => processedMessages.delete(messageId), MESSAGE_TIMEOUT);
+  // Store or update pending event
+  if (!pendingEvents.has(messageId)) {
+    pendingEvents.set(messageId, { event, text: '', imageUrl: '' });
+    setTimeout(() => processPendingEvents(messageId), MESSAGE_TIMEOUT);
+  }
 
   const { messageText, isQuickReply } = extractMessage(event);
   const imageUrl = extractImageUrl(event);
 
-// If both text and image are present, handle them together
-  if (imageUrl && messageText) {
+  const pending = pendingEvents.get(messageId);
+  if (messageText) pending.text = messageText;
+  if (imageUrl) pending.imageUrl = imageUrl;
+
+  // Early return if not the last event in the timeout window
+  return;
+}
+
+async function processPendingEvents(messageId) {
+  const pending = pendingEvents.get(messageId);
+  if (!pending) return;
+
+  processedMessages.add(messageId);
+  pendingEvents.delete(messageId);
+
+  const { text, imageUrl } = pending.event;
+  if (!text && !imageUrl) return;
+
+  // Handle combined text and image
+  if (imageUrl && text) {
     try {
       // 1. Store user text message
-      if (shouldStoreUserMessage(messageText)) {
-        await storeMessage(senderId, "user", messageText);
+      if (shouldStoreUserMessage(text)) {
+        await storeMessage(senderId, "user", text);
       }
 
       // 2. Upload image to Cloudinary
@@ -142,7 +175,7 @@ async function handleMessage(event) {
       const visionResult = await compareImageWithProducts(secure_url, productList);
 
       // 4. Process text message
-      const aiResponse = await processMessage(senderId, messageText);
+      const aiResponse = await processMessage(senderId, text);
       const aiResult = aiResponse && aiResponse.content ? aiResponse.content : '';
 
       // 5. Combine results
@@ -163,42 +196,35 @@ async function handleMessage(event) {
     return;
   }
 
-  // If only image is present
+  // Handle image only
   if (imageUrl) {
     try {
-      // 1. Upload Messenger image to Cloudinary
       const uploadResp = await uploadMessengerImageToCloudinary(imageUrl, senderId);
       const secure_url = uploadResp.secure_url;
       const public_id = uploadResp.public_id;
 
-      // console.log(secure_url);
-      // console.log(public_id);
-      
-      // 2. Compare with products
       const productList = getProductDatabase();
       const result = await compareImageWithProducts(secure_url, productList);
 
-      // 3. Send result to user
       await sendResponse(senderId, { type: 'text', content: result });
-
-      // 4. Optionally delete the image from Cloudinary
+      await storeAssistantMessage(senderId, result);
       await deleteFromCloudinary(public_id);
-
     } catch (error) {
       console.error('Image handling error:', error.message);
       const errMsg = 'Xin lỗi, em không thể nhận diện ảnh này lúc này.';
       await sendResponse(senderId, { type: 'text', content: errMsg });
+      await storeAssistantMessage(senderId, errMsg);
     }
     return;
   }
 
-  // If only text is present
-  if (messageText) {
+  // Handle text only
+  if (text) {
     try {
-      if (shouldStoreUserMessage(messageText)) {
-        await storeMessage(senderId, "user", messageText);
+      if (shouldStoreUserMessage(text)) {
+        await storeMessage(senderId, "user", text);
       }
-      await handleTextMessage(senderId, messageText);
+      await handleTextMessage(senderId, text);
     } catch (error) {
       console.error('Text handling error:', error.message);
       const errMsg = 'Xin lỗi, đã có lỗi xảy ra. Bạn thử lại sau nhé!';
@@ -207,11 +233,83 @@ async function handleMessage(event) {
     }
     return;
   }
-    // Fallback
+}
+
+async function processStandaloneEvent(event) {
+  const { messageText, isQuickReply } = extractMessage(event);
+  const imageUrl = extractImageUrl(event);
+
+  if (imageUrl && messageText) {
+    try {
+      if (shouldStoreUserMessage(messageText)) {
+        await storeMessage(senderId, "user", messageText);
+      }
+      const uploadResp = await uploadMessengerImageToCloudinary(imageUrl, senderId);
+      const secure_url = uploadResp.secure_url;
+      const public_id = uploadResp.public_id;
+
+      const productList = getProductDatabase();
+      const visionResult = await compareImageWithProducts(secure_url, productList);
+      const aiResponse = await processMessage(senderId, messageText);
+      const aiResult = aiResponse && aiResponse.content ? aiResponse.content : '';
+
+      const combinedMsg = [visionResult, aiResult].filter(Boolean).join('\n\n');
+      await sendResponse(senderId, { type: 'text', content: combinedMsg });
+      await storeAssistantMessage(senderId, combinedMsg);
+      await deleteFromCloudinary(public_id);
+    } catch (error) {
+      console.error('Combined error:', error.message);
+      const errMsg = 'Xin lỗi, em không thể xử lý ảnh và tin nhắn này lúc này.';
+      await sendResponse(senderId, { type: 'text', content: errMsg });
+      await storeAssistantMessage(senderId, errMsg);
+    }
+    return;
+  }
+
+  if (imageUrl) {
+    try {
+      const uploadResp = await uploadMessengerImageToCloudinary(imageUrl, senderId);
+      const secure_url = uploadResp.secure_url;
+      const public_id = uploadResp.public_id;
+
+      const productList = getProductDatabase();
+      const result = await compareImageWithProducts(secure_url, productList);
+
+      await sendResponse(senderId, { type: 'text', content: result });
+      await storeAssistantMessage(senderId, result);
+      await deleteFromCloudinary(public_id);
+    } catch (error) {
+      console.error('Image error:', error.message);
+      const errMsg = 'Xin lỗi, em không thể nhận diện ảnh này lúc này.';
+      await sendResponse(senderId, { type: 'text', content: errMsg });
+      await storeAssistantMessage(senderId, errMsg);
+    }
+    return;
+  }
+
+  if (messageText) {
+    try {
+      if (shouldStoreUserMessage(messageText)) {
+        await storeMessage(senderId, "user", messageText);
+      }
+      await handleTextMessage(senderId, messageText);
+    } catch (error) {
+      console.error('Text error:', error.message);
+      const errMsg = 'Xin lỗi, đã có lỗi xảy ra. Bạn thử lại sau nhé!';
+      await sendResponse(senderId, { type: 'text', content: errMsg });
+      await storeAssistantMessage(senderId, errMsg);
+    }
+    return;
+  }
+
   const fallbackMsg = 'Xin lỗi, em chưa hiểu ý ạ. Có thể gửi lại tin nhắn hoặc hình ảnh?';
-  sendResponse(senderId, { type: 'text', content: fallbackMsg });
+  await sendResponse(senderId, { type: 'text', content: fallbackMsg });
   await storeAssistantMessage(senderId, fallbackMsg);
 }
+
+
+
+
 /**
  * Handle postback events from Messenger (e.g., button clicks).
  */
