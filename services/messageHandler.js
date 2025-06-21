@@ -8,18 +8,17 @@ const { processMessage } = require('./processMessage');
 const { sendResponse, sendMessage } = require('./sendResponse');
 // Import system prompt for OpenAI context
 const { getSystemPrompt } = require('../reference/promptData');
-// Import image comparision
+// Import image comparison
 const { compareImageWithProducts } = require('./visionProductMatcher');
 // Get product database
 const { getProductDatabase } = require('../db/productInfo.js');
-
-// Cloudinary ultilities
+// Cloudinary utilities
 const { uploadMessengerImageToCloudinary, deleteFromCloudinary } = require('./cloudinary/cloudinaryUploader');
 
 // Store recent message IDs and their pending events
 const processedMessages = new Set();
 const pendingEvents = new Map();
-const MESSAGE_TIMEOUT = 5000; // Increased to 5 seconds to allow more time
+const MESSAGE_TIMEOUT = 5000; // 5 seconds to allow event aggregation
 
 // Define shouldStoreUserMessage
 function shouldStoreUserMessage(messageText) {
@@ -111,7 +110,6 @@ async function handleTextMessage(senderId, messageText) {
  * Applies rate limiting, stores/retrieves chat history,
  * and delegates to processMessage for AI response.
  */
-
 async function handleMessage(event) {
   const senderId = event.sender.id;
   await ensureSystemPrompt(senderId);
@@ -129,16 +127,39 @@ async function handleMessage(event) {
   // Store or update pending event with a unique key based on senderId and time window
   const eventKey = `${senderId}_${Math.floor(Date.now() / MESSAGE_TIMEOUT)}`; // Group by 5-second window
   if (!pendingEvents.has(eventKey)) {
-    pendingEvents.set(eventKey, { events: [], timestamp: Date.now() });
-    setTimeout(() => processPendingEvents(eventKey), MESSAGE_TIMEOUT);
+    pendingEvents.set(eventKey, { events: [], lock: false, resolve: null, timestamp: Date.now() });
   }
 
+  const pending = pendingEvents.get(eventKey);
   const { messageText, isQuickReply } = extractMessage(event) || { messageText: '', isQuickReply: false };
   const imageUrl = extractImageUrl(event);
 
-  const pending = pendingEvents.get(eventKey);
+  // If image is detected, lock the process and wait for text
+  if (imageUrl && !pending.lock) {
+    pending.lock = true;
+    pending.resolve = new Promise((resolve) => {
+      setTimeout(() => {
+        resolve();
+        pending.lock = false; // Unlock after timeout
+      }, MESSAGE_TIMEOUT);
+    });
+    console.log('Image detected, locking process for:', eventKey);
+  }
+
   pending.events.push({ messageText, imageUrl, timestamp: Date.now() });
   console.log('Pending events updated for key:', eventKey, JSON.stringify(pending.events, null, 2));
+
+  // If locked, wait for resolution before processing
+  if (pending.lock) {
+    await pending.resolve;
+  }
+
+  // Process events after lock resolution or if no lock
+  if (!pending.processing) {
+    pending.processing = true;
+    await processPendingEvents(eventKey);
+    pending.processing = false;
+  }
 
   return;
 
@@ -168,39 +189,22 @@ async function handleMessage(event) {
     }
 
     try {
-      // Handle combined text and image
-      if (imageUrl && text) {
-        console.log('Processing combined text and image for:', eventKey);
-        if (shouldStoreUserMessage(text)) {
-          await storeMessage(senderId, "user", text);
-        }
+      // Handle combined text and image (prioritize image)
+      if (imageUrl) {
+        console.log('Processing image (with optional text) for:', eventKey);
         const uploadResp = await uploadMessengerImageToCloudinary(imageUrl, senderId);
         const secure_url = uploadResp.secure_url;
         const public_id = uploadResp.public_id;
 
         const productList = getProductDatabase();
         const visionResult = await compareImageWithProducts(secure_url, productList);
-        // Removed aiResponse and aiResult, using only visionResult
         const combinedMsg = visionResult; // Use only the vision result
 
         await sendResponse(senderId, { type: 'text', content: combinedMsg });
-        await storeAssistantMessage(senderId, combinedMsg);
+        await storeAssistantMessage(senderId, combinedMsg); // Store only visionResult
         await deleteFromCloudinary(public_id);
       }
-      // Handle image only
-      else if (imageUrl) {
-        console.log('Processing image only for:', eventKey);
-        const uploadResp = await uploadMessengerImageToCloudinary(imageUrl, senderId);
-        const secure_url = uploadResp.secure_url;
-        const public_id = uploadResp.public_id;
-
-        const productList = getProductDatabase();
-        const result = await compareImageWithProducts(secure_url, productList);
-        await sendResponse(senderId, { type: 'text', content: result });
-        await storeAssistantMessage(senderId, result);
-        await deleteFromCloudinary(public_id);
-      }
-      // Handle text only
+      // Handle text only (if no image)
       else if (text) {
         console.log('Processing text only for:', eventKey);
         if (shouldStoreUserMessage(text)) {
