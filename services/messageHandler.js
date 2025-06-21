@@ -26,8 +26,6 @@ function shouldStoreUserMessage(messageText) {
   return messageText && messageText.trim() !== '' && !messageText.startsWith('/');
 }
 
-
-
 // --- Utility: Ensure system prompt is in history ---
 async function ensureSystemPrompt(senderId) {
   const history = await getHistory(senderId);
@@ -113,20 +111,18 @@ async function handleTextMessage(senderId, messageText) {
  * Applies rate limiting, stores/retrieves chat history,
  * and delegates to processMessage for AI response.
  */
+
 async function handleMessage(event) {
   const senderId = event.sender.id;
   await ensureSystemPrompt(senderId);
 
-  // Extract message ID (mid) for grouping events
-  const messageId = event.message?.mid;
-  if (!messageId) {
-    console.log('No message ID found, processing as standalone event');
-    await processStandaloneEvent(event);
-    return;
-  }
+  // Extract message ID (mid) for grouping events, fallback to timestamp if missing
+  const messageId = event.message?.mid || `${senderId}_${Date.now()}`;
+  console.log('Processing messageId:', messageId);
 
   // Skip if message was recently processed
   if (processedMessages.has(messageId)) {
+    console.log('Message already processed, skipping:', messageId);
     return;
   }
 
@@ -136,179 +132,81 @@ async function handleMessage(event) {
     setTimeout(() => processPendingEvents(messageId), MESSAGE_TIMEOUT);
   }
 
-  const { messageText, isQuickReply } = extractMessage(event);
-  const imageUrl = extractImageUrl(event);
+  const { messageText, isQuickReply } = extractMessage(event) || { messageText: '', isQuickReply: false };
+  const imageUrl = extractImageUrl(event) || '';
 
   const pending = pendingEvents.get(messageId);
   if (messageText) pending.text = messageText;
   if (imageUrl) pending.imageUrl = imageUrl;
 
-  // Early return if not the last event in the timeout window
+  console.log('Pending event updated:', JSON.stringify(pending, null, 2));
+
   return;
-}
 
-async function processPendingEvents(messageId) {
-  const pending = pendingEvents.get(messageId);
-  if (!pending) return;
+  async function processPendingEvents(messageId) {
+    const pending = pendingEvents.get(messageId);
+    if (!pending) {
+      console.warn('No pending event found for:', messageId);
+      return;
+    }
 
-  processedMessages.add(messageId);
-  pendingEvents.delete(messageId);
+    processedMessages.add(messageId);
+    pendingEvents.delete(messageId);
 
-  const { text, imageUrl } = pending.event;
-  if (!text && !imageUrl) return;
+    const { text, imageUrl } = pending.event;
+    if (!text && !imageUrl) {
+      console.warn('No text or image to process for:', messageId);
+      return;
+    }
 
-  // Handle combined text and image
-  if (imageUrl && text) {
     try {
-      // 1. Store user text message
-      if (shouldStoreUserMessage(text)) {
-        await storeMessage(senderId, "user", text);
+      // Handle combined text and image
+      if (imageUrl && text) {
+        if (shouldStoreUserMessage(text)) {
+          await storeMessage(senderId, "user", text);
+        }
+        const uploadResp = await uploadMessengerImageToCloudinary(imageUrl, senderId);
+        const secure_url = uploadResp.secure_url;
+        const public_id = uploadResp.public_id;
+
+        const productList = getProductDatabase();
+        const visionResult = await compareImageWithProducts(secure_url, productList);
+        const aiResponse = await processMessage(senderId, text);
+        const aiResult = aiResponse && aiResponse.content ? aiResponse.content : '';
+
+        const combinedMsg = [visionResult, aiResult].filter(Boolean).join('\n\n');
+        await sendResponse(senderId, { type: 'text', content: combinedMsg });
+        await storeAssistantMessage(senderId, combinedMsg);
+        await deleteFromCloudinary(public_id);
       }
+      // Handle image only
+      else if (imageUrl) {
+        const uploadResp = await uploadMessengerImageToCloudinary(imageUrl, senderId);
+        const secure_url = uploadResp.secure_url;
+        const public_id = uploadResp.public_id;
 
-      // 2. Upload image to Cloudinary
-      const uploadResp = await uploadMessengerImageToCloudinary(imageUrl, senderId);
-      const secure_url = uploadResp.secure_url;
-      const public_id = uploadResp.public_id;
+        const productList = getProductDatabase();
+        const result = await compareImageWithProducts(secure_url, productList);
 
-      // 3. Compare image with products
-      const productList = getProductDatabase();
-      const visionResult = await compareImageWithProducts(secure_url, productList);
-
-      // 4. Process text message
-      const aiResponse = await processMessage(senderId, text);
-      const aiResult = aiResponse && aiResponse.content ? aiResponse.content : '';
-
-      // 5. Combine results
-      const combinedMsg = [visionResult, aiResult].filter(Boolean).join('\n\n');
-
-      // 6. Send combined response
-      await sendResponse(senderId, { type: 'text', content: combinedMsg });
-      await storeAssistantMessage(senderId, combinedMsg);
-
-      // 7. Delete image from Cloudinary
-      await deleteFromCloudinary(public_id);
-    } catch (error) {
-      console.error('Combined text and image handling error:', error.message);
-      const errMsg = 'Xin lỗi, em không thể xử lý ảnh và tin nhắn này lúc này.';
-      await sendResponse(senderId, { type: 'text', content: errMsg });
-      await storeAssistantMessage(senderId, errMsg);
-    }
-    return;
-  }
-
-  // Handle image only
-  if (imageUrl) {
-    try {
-      const uploadResp = await uploadMessengerImageToCloudinary(imageUrl, senderId);
-      const secure_url = uploadResp.secure_url;
-      const public_id = uploadResp.public_id;
-
-      const productList = getProductDatabase();
-      const result = await compareImageWithProducts(secure_url, productList);
-
-      await sendResponse(senderId, { type: 'text', content: result });
-      await storeAssistantMessage(senderId, result);
-      await deleteFromCloudinary(public_id);
-    } catch (error) {
-      console.error('Image handling error:', error.message);
-      const errMsg = 'Xin lỗi, em không thể nhận diện ảnh này lúc này.';
-      await sendResponse(senderId, { type: 'text', content: errMsg });
-      await storeAssistantMessage(senderId, errMsg);
-    }
-    return;
-  }
-
-  // Handle text only
-  if (text) {
-    try {
-      if (shouldStoreUserMessage(text)) {
-        await storeMessage(senderId, "user", text);
+        await sendResponse(senderId, { type: 'text', content: result });
+        await storeAssistantMessage(senderId, result);
+        await deleteFromCloudinary(public_id);
       }
-      await handleTextMessage(senderId, text);
+      // Handle text only
+      else if (text) {
+        if (shouldStoreUserMessage(text)) {
+          await storeMessage(senderId, "user", text);
+        }
+        await handleTextMessage(senderId, text);
+      }
     } catch (error) {
-      console.error('Text handling error:', error.message);
-      const errMsg = 'Xin lỗi, đã có lỗi xảy ra. Bạn thử lại sau nhé!';
+      console.error('Processing error for messageId:', messageId, error.message);
+      const errMsg = 'Xin lỗi, em không thể xử lý tin nhắn này lúc này.';
       await sendResponse(senderId, { type: 'text', content: errMsg });
       await storeAssistantMessage(senderId, errMsg);
     }
-    return;
   }
 }
-
-async function processStandaloneEvent(event) {
-  const { messageText, isQuickReply } = extractMessage(event);
-  const imageUrl = extractImageUrl(event);
-
-  if (imageUrl && messageText) {
-    try {
-      if (shouldStoreUserMessage(messageText)) {
-        await storeMessage(senderId, "user", messageText);
-      }
-      const uploadResp = await uploadMessengerImageToCloudinary(imageUrl, senderId);
-      const secure_url = uploadResp.secure_url;
-      const public_id = uploadResp.public_id;
-
-      const productList = getProductDatabase();
-      const visionResult = await compareImageWithProducts(secure_url, productList);
-      const aiResponse = await processMessage(senderId, messageText);
-      const aiResult = aiResponse && aiResponse.content ? aiResponse.content : '';
-
-      const combinedMsg = [visionResult, aiResult].filter(Boolean).join('\n\n');
-      await sendResponse(senderId, { type: 'text', content: combinedMsg });
-      await storeAssistantMessage(senderId, combinedMsg);
-      await deleteFromCloudinary(public_id);
-    } catch (error) {
-      console.error('Combined error:', error.message);
-      const errMsg = 'Xin lỗi, em không thể xử lý ảnh và tin nhắn này lúc này.';
-      await sendResponse(senderId, { type: 'text', content: errMsg });
-      await storeAssistantMessage(senderId, errMsg);
-    }
-    return;
-  }
-
-  if (imageUrl) {
-    try {
-      const uploadResp = await uploadMessengerImageToCloudinary(imageUrl, senderId);
-      const secure_url = uploadResp.secure_url;
-      const public_id = uploadResp.public_id;
-
-      const productList = getProductDatabase();
-      const result = await compareImageWithProducts(secure_url, productList);
-
-      await sendResponse(senderId, { type: 'text', content: result });
-      await storeAssistantMessage(senderId, result);
-      await deleteFromCloudinary(public_id);
-    } catch (error) {
-      console.error('Image error:', error.message);
-      const errMsg = 'Xin lỗi, em không thể nhận diện ảnh này lúc này.';
-      await sendResponse(senderId, { type: 'text', content: errMsg });
-      await storeAssistantMessage(senderId, errMsg);
-    }
-    return;
-  }
-
-  if (messageText) {
-    try {
-      if (shouldStoreUserMessage(messageText)) {
-        await storeMessage(senderId, "user", messageText);
-      }
-      await handleTextMessage(senderId, messageText);
-    } catch (error) {
-      console.error('Text error:', error.message);
-      const errMsg = 'Xin lỗi, đã có lỗi xảy ra. Bạn thử lại sau nhé!';
-      await sendResponse(senderId, { type: 'text', content: errMsg });
-      await storeAssistantMessage(senderId, errMsg);
-    }
-    return;
-  }
-
-  const fallbackMsg = 'Xin lỗi, em chưa hiểu ý ạ. Có thể gửi lại tin nhắn hoặc hình ảnh?';
-  await sendResponse(senderId, { type: 'text', content: fallbackMsg });
-  await storeAssistantMessage(senderId, fallbackMsg);
-}
-
-
-
 
 /**
  * Handle postback events from Messenger (e.g., button clicks).
