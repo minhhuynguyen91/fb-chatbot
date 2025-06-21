@@ -133,8 +133,7 @@ async function handleMessage(event) {
   const { messageText, isQuickReply } = extractMessage(event) || { messageText: '', isQuickReply: false };
   const imageUrl = extractImageUrl(event);
 
-  // Set lock if image is detected (applies to all events for this sender)
-  let lockSet = false;
+  // Set or maintain lock if image is detected
   if (imageUrl && !pending.lock) {
     pending.lock = true;
     pending.resolve = new Promise((resolve) => {
@@ -144,24 +143,26 @@ async function handleMessage(event) {
       }, MESSAGE_TIMEOUT);
     });
     console.log('Image detected, locking process for sender:', senderId);
-    lockSet = true;
   } else if (pending.lock) {
     console.log('Process already locked for sender:', senderId);
-    lockSet = true;
   }
 
   pending.events.push({ messageText, imageUrl, timestamp: Date.now() });
   console.log('Pending events updated for sender:', senderId, JSON.stringify(pending.events, null, 2));
 
-  // Wait for lock resolution before any processing
-  if (lockSet) {
-    await pending.resolve; // Hold all events until timeout if lock is set or might be set
-  }
-
-  // Process events only if not already processed, after waiting for lock
+  // Defer processing until timeout if lock is set or might be set
   if (!pending.processed) {
-    pending.processed = true;
-    await processPendingEvents(senderId);
+    if (pending.lock) {
+      await pending.resolve; // Wait for timeout if lock is active
+    } else {
+      // Schedule processing after timeout to check for late images
+      setTimeout(async () => {
+        if (!pending.processed) {
+          pending.processed = true;
+          await processPendingEvents(senderId);
+        }
+      }, MESSAGE_TIMEOUT);
+    }
   }
 
   return;
@@ -206,7 +207,7 @@ async function handleMessage(event) {
         await storeAssistantMessage(senderId, combinedMsg); // Store combined result
         await deleteFromCloudinary(public_id);
       }
-      // Handle text only (if no image and no lock was set)
+      // Handle text only (if no image after timeout)
       else if (text) {
         console.log('Processing text only for:', senderId);
         if (shouldStoreUserMessage(text)) {
