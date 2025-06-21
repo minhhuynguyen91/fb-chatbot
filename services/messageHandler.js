@@ -192,10 +192,19 @@ async function handleMessage(event) {
     return;
   }
 
-  // 6. If only text (from any source)
+  // If only text is present
   if (messageText) {
-    await storeMessage(senderId, "user", messageText);
-    await handleTextMessage(senderId, messageText);
+    try {
+      if (shouldStoreUserMessage(messageText)) {
+        await storeMessage(senderId, "user", messageText);
+      }
+      await handleTextMessage(senderId, messageText);
+    } catch (error) {
+      console.error('Text handling error:', error.message);
+      const errMsg = 'Xin lỗi, đã có lỗi xảy ra. Bạn thử lại sau nhé!';
+      await sendResponse(senderId, { type: 'text', content: errMsg });
+      await storeAssistantMessage(senderId, errMsg);
+    }
     return;
   }
     // Fallback
