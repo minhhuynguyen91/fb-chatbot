@@ -19,7 +19,7 @@ const { uploadMessengerImageToCloudinary, deleteFromCloudinary } = require('./cl
 // Store recent message IDs and their pending events
 const processedMessages = new Set();
 const pendingEvents = new Map();
-const MESSAGE_TIMEOUT = 3000; // Reduced to 3 seconds for faster response
+const MESSAGE_TIMEOUT = 5000; // Increased to 5 seconds to allow more time
 
 // Define shouldStoreUserMessage
 function shouldStoreUserMessage(messageText) {
@@ -116,7 +116,7 @@ async function handleMessage(event) {
   const senderId = event.sender.id;
   await ensureSystemPrompt(senderId);
 
-  // Extract message ID (mid) for grouping events, fallback to timestamp
+// Extract message ID (mid) for grouping events, fallback to senderId + timestamp
   const messageId = event.message?.mid || `${senderId}_${Date.now()}`;
   console.log('Processing messageId:', messageId, 'Event:', JSON.stringify(event, null, 2));
 
@@ -126,45 +126,51 @@ async function handleMessage(event) {
     return;
   }
 
-  // Store or update pending event
-  if (!pendingEvents.has(messageId)) {
-    pendingEvents.set(messageId, { event, text: '', imageUrl: '', timestamp: Date.now() });
-    setTimeout(() => processPendingEvents(messageId), MESSAGE_TIMEOUT);
+  // Store or update pending event with a unique key based on senderId and time window
+  const eventKey = `${senderId}_${Math.floor(Date.now() / MESSAGE_TIMEOUT)}`; // Group by 5-second window
+  if (!pendingEvents.has(eventKey)) {
+    pendingEvents.set(eventKey, { events: [], timestamp: Date.now() });
+    setTimeout(() => processPendingEvents(eventKey), MESSAGE_TIMEOUT);
   }
 
   const { messageText, isQuickReply } = extractMessage(event) || { messageText: '', isQuickReply: false };
   const imageUrl = extractImageUrl(event);
 
-  const pending = pendingEvents.get(messageId);
-  if (messageText) pending.text = messageText || pending.text; // Preserve existing text if updated
-  if (imageUrl) pending.imageUrl = imageUrl || pending.imageUrl; // Preserve existing imageUrl if updated
-
-  console.log('Pending event updated:', JSON.stringify(pending, null, 2));
+  const pending = pendingEvents.get(eventKey);
+  pending.events.push({ messageText, imageUrl, timestamp: Date.now() });
+  console.log('Pending events updated for key:', eventKey, JSON.stringify(pending.events, null, 2));
 
   return;
 
-  async function processPendingEvents(messageId) {
-    const pending = pendingEvents.get(messageId);
-    if (!pending) {
-      console.warn('No pending event found for:', messageId);
+  async function processPendingEvents(eventKey) {
+    const pending = pendingEvents.get(eventKey);
+    if (!pending || !pending.events.length) {
+      console.warn('No pending events found for:', eventKey);
       return;
     }
 
-    processedMessages.add(messageId);
-    pendingEvents.delete(messageId);
+    const allEvents = pending.events;
+    processedMessages.add(eventKey);
+    pendingEvents.delete(eventKey);
 
-    const { text, imageUrl } = pending;
-    console.log('Processing pending event:', { text, imageUrl });
+    // Aggregate text and imageUrl from all events
+    let text = '';
+    let imageUrl = '';
+    for (const evt of allEvents) {
+      if (evt.messageText) text = evt.messageText || text;
+      if (evt.imageUrl) imageUrl = evt.imageUrl || imageUrl;
+    }
+    console.log('Aggregated pending event:', { text, imageUrl });
 
     if (!text && !imageUrl) {
-      console.warn('No text or image to process for:', messageId);
+      console.warn('No text or image to process for:', eventKey);
       return;
     }
 
     try {
       // Handle combined text and image
       if (imageUrl && text) {
-        console.log('Processing combined text and image for:', messageId);
+        console.log('Processing combined text and image for:', eventKey);
         if (shouldStoreUserMessage(text)) {
           await storeMessage(senderId, "user", text);
         }
@@ -184,7 +190,7 @@ async function handleMessage(event) {
       }
       // Handle image only
       else if (imageUrl) {
-        console.log('Processing image only for:', messageId);
+        console.log('Processing image only for:', eventKey);
         const uploadResp = await uploadMessengerImageToCloudinary(imageUrl, senderId);
         const secure_url = uploadResp.secure_url;
         const public_id = uploadResp.public_id;
@@ -197,14 +203,14 @@ async function handleMessage(event) {
       }
       // Handle text only
       else if (text) {
-        console.log('Processing text only for:', messageId);
+        console.log('Processing text only for:', eventKey);
         if (shouldStoreUserMessage(text)) {
           await storeMessage(senderId, "user", text);
         }
         await handleTextMessage(senderId, text);
       }
     } catch (error) {
-      console.error('Processing error for messageId:', messageId, error.message);
+      console.error('Processing error for eventKey:', eventKey, error.message);
       const errMsg = 'Xin lỗi, em không thể xử lý tin nhắn này lúc này.';
       await sendResponse(senderId, { type: 'text', content: errMsg });
       await storeAssistantMessage(senderId, errMsg);
