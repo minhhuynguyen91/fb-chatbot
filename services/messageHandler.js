@@ -9,7 +9,7 @@ const { sendResponse, sendMessage } = require('./sendResponse');
 // Import system prompt for OpenAI context
 const { getSystemPrompt } = require('../reference/promptData');
 // Import image comparison
-const { compareImageWithProducts } = require('./visionProductMatcher');
+const { compareAndGetProductDetails } = require('./visionProductMatcher');
 // Get product database
 const { getProductDatabase } = require('../db/productInfo.js');
 // Cloudinary utilities
@@ -198,7 +198,7 @@ async function handleMessage(event) {
         const public_id = uploadResp.public_id;
 
         const productList = getProductDatabase();
-        const visionResult = await compareImageWithProducts(secure_url, productList);
+        const visionResult = await compareAndGetProductDetails(secure_url, productList);
         let combinedMsg = visionResult;
         if (text) {
           combinedMsg = `Dạ, ${text} Em nhận diện được sản phẩm giống với ảnh là:\n${visionResult}`;

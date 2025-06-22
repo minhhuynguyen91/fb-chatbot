@@ -65,4 +65,57 @@ Nếu không, trả lời "Dạ, em không tìm thấy".\n`;
     return response.choices[0].message.content.trim();
 }
 
-module.exports = { compareImageWithProducts };
+/**
+ * Extract product name and category from model response.
+ * Supports format: "*Đầm Maxi (Áo Quần)*"
+ */
+function extractProductInfo(modelResponse) {
+    // Match *Product Name (Category)* or similar
+    const match = modelResponse.match(/\*([^\*]+)\s*\(([^)]+)\)\*/);
+    if (match) {
+        return {
+            name: match[1].trim(),
+            category: match[2].trim()
+        };
+    }
+    return null;
+}
+
+/**
+ * Find product details from productList by name and category.
+ */
+function findProductDetails({ name, category }, productList) {
+    return productList.find(
+        p =>
+            (p.name === name || p.product === name) &&
+            p.category === category
+    );
+}
+
+// Usage example:
+async function compareAndGetProductDetails(customerImageUrl, productList) {
+    const modelResponse = await compareImageWithProducts(customerImageUrl, productList);
+
+    // If not found, return as is
+    if (/không tìm thấy/i.test(modelResponse)) {
+        return modelResponse;
+    }
+
+    const info = extractProductInfo(modelResponse);
+    if (!info) return modelResponse;
+
+    const product = findProductDetails(info, productList);
+    if (product) {
+        // Add more details as needed
+        return `
+${modelResponse}
+Giá sản phẩm: \n${product.price}
+Bảng size: \n${product.size}
+Các màu hiện có: \n${product.color}
+`;
+    } else {
+        return modelResponse;
+    }
+}
+
+module.exports = { compareAndGetProductDetails };
