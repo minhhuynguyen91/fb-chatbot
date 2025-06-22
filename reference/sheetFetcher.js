@@ -1,5 +1,6 @@
 const { google } = require('googleapis');
 const { GoogleAuth } = require('google-auth-library');
+const retry = require('async-retry');
 
 const auth = new GoogleAuth({
   keyFile: '.env_data/client_secret_545214956475-ivfu24fmkafq8pm3cf3tcembu5rlbq8a.apps.googleusercontent.com.json',
@@ -16,23 +17,32 @@ async function fetchSheetData() {
     const sheets = google.sheets({ version: 'v4', auth: client });
 
     // Fetch intro/system prompt
-    const introRes = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range: 'Intro',
-    });
+    const introRes = await retry(
+      async () => {
+        return await sheets.spreadsheets.values.get({
+          spreadsheetId,
+          range: 'Intro',
+        });
+      },
+      { retries: 3, factor: 2, minTimeout: 1000 }
+    );
     introData = introRes.data.values;
 
     // Fetch product info
-    const prodRes = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range: 'product',
-    });
+    const prodRes = await retry(
+      async () => {
+        return await sheets.spreadsheets.values.get({
+          spreadsheetId,
+          range: 'product',
+        });
+      },
+      { retries: 3, factor: 2, minTimeout: 1000 }
+    );
     productData = prodRes.data.values;
 
-    // Optionally log
-    // console.log('Sheet data updated');
+    console.log('Sheet data updated at', new Date().toISOString());
   } catch (error) {
-    console.error('Error fetching sheet data:', error.message);
+    console.error('Error fetching sheet data after retries:', error.message);
   }
 }
 
