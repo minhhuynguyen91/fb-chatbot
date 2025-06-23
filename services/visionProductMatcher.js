@@ -31,7 +31,11 @@ async function compareImageWithProducts(customerImageUrl, productList) {
 
     let prompt = `Dưới đây là một ảnh khách gửi (Ảnh khách), tiếp theo là các ảnh sản phẩm được đánh số từ 1 đến ${productImages.length}. 
 Nhiệm vụ của bạn: So sánh Ảnh khách với từng ảnh sản phẩm theo thứ tự. 
-- Nếu có ảnh sản phẩm nào giống Ảnh khách, trả về định dạng: "*[Tên sản phẩm] ([Danh mục])*".
+- Nếu có ảnh sản phẩm nào giống Ảnh khách, trả về định dạng: 
+    Dạ sản phẩm giống với ảnh của khách là:
+    **[Tên sản phẩm] ([Danh mục])**.
+
+- Chỉ trả về tên sản phẩm và danh mục của ảnh trùng khớp đầu tiên
 - Nếu không, trả về: "Dạ, em không tìm thấy".
 Giọng điệu thân thiện với khách, chỉ trả lời theo định dạng yêu cầu.\n`;
 
@@ -73,7 +77,7 @@ function extractProductInfo(modelResponse) {
     let name = '', category = '';
 
     // Format 1: *name (category)*
-    const match1 = modelResponse.match(/^\*\s*([^\*]+)\s*\(([^)]+)\)\s*\*$/);
+    const match1 = modelResponse.match(/\*\s*([^\*]+)\s*\(([^)]+)\)\s*\*/);
     if (match1) {
         name = match1[1].trim();
         category = match1[2].trim();
