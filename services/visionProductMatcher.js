@@ -71,7 +71,7 @@ Nếu không, trả lời "Dạ, em không tìm thấy".\n`;
  */
 function extractProductInfo(modelResponse) {
     // Match *Product Name (Category)* or similar
-    const match = modelResponse.match(/\*([^\*]+)\s*\(([^)]+)\)\*/);
+    const match = modelResponse.match(/([^\*]+)\s*\(([^)]+)\)/);
     if (match) {
         return {
             name: match[1].trim(),
