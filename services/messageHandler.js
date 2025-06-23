@@ -140,6 +140,7 @@ async function handleMessage(event) {
       setTimeout(() => {
         resolve();
         pending.lock = false; // Unlock after timeout
+        console.log('Unlocking process for sender:', senderId);
       }, MESSAGE_TIMEOUT);
     });
     console.log('Image detected, locking process for sender:', senderId);
@@ -150,18 +151,19 @@ async function handleMessage(event) {
   pending.events.push({ messageText, imageUrl, timestamp: Date.now() });
   console.log('Pending events updated for sender:', senderId, JSON.stringify(pending.events, null, 2));
 
-  // Defer processing until timeout if lock is set or might be set
+  // Always schedule processing after timeout
   if (!pending.processed) {
+    const timer = setTimeout(async () => {
+      if (!pending.processed) {
+        pending.processed = true;
+        await processPendingEvents(senderId);
+        clearTimeout(timer); // Clean up timer
+      }
+    }, MESSAGE_TIMEOUT);
+
+    // If lock is set, wait for it to resolve before allowing timer to proceed
     if (pending.lock) {
-      await pending.resolve; // Wait for timeout if lock is active
-    } else {
-      // Schedule processing after timeout to check for late images
-      setTimeout(async () => {
-        if (!pending.processed) {
-          pending.processed = true;
-          await processPendingEvents(senderId);
-        }
-      }, MESSAGE_TIMEOUT);
+      await pending.resolve;
     }
   }
 
