@@ -140,7 +140,7 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
         const chatResponse = await openai.chat.completions.create({
           model: 'gpt-4o-mini',
           messages,
-          max_tokens: 150
+          max_tokens: 1024
         });
         const responseText = chatResponse.choices[0].message.content.trim();
         return { type: 'text', content: responseText };
@@ -172,24 +172,28 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
     }
 
     default: {
-      // General intent or fallback to OpenAI chat
-      const userProfile = await getUserProfile(senderId);
-      const prompt=` 
-${SYSTEM_PROMPT} 
-Danh mục sản phẩm :${PRODUCT_DATABASE}, 
-Luôn gọi khách hàng bằng tên: ${userProfile.first_name} ${userProfile.last_name}
-`
-      const messages = [
-        { role: 'system', content: prompt },
-        ...(await getHistory(senderId)).slice(-6)
-      ];
-      const chatResponse = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages,
-        max_tokens: 150
-      });
-      const responseText = chatResponse.choices[0].message.content.trim();
-      return { type: 'text', content: responseText };
+      try {
+        const userProfile = await getUserProfile(senderId);
+        const prompt = `
+    ${SYSTEM_PROMPT} 
+    Danh mục sản phẩm :${PRODUCT_DATABASE}, 
+    Luôn gọi khách hàng bằng tên: ${userProfile.first_name} ${userProfile.last_name}
+    `
+        const messages = [
+          { role: 'system', content: prompt },
+          ...(await getHistory(senderId)).slice(-6)
+        ];
+        const chatResponse = await openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages,
+          max_tokens: 1024
+        });
+        const responseText = chatResponse.choices[0].message.content.trim();
+        return { type: 'text', content: responseText };
+      } catch (err) {
+        console.error('Error in handleIntent default case:', err);
+        return { type: 'text', content: 'Xin lỗi, em không hiểu ý khách. Khách có thể hỏi lại giúp em nhé!' };
+      }
     }
   }
 }

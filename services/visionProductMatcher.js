@@ -63,7 +63,7 @@ Giọng điệu thân thiện với khách, chỉ trả lời theo định dạn
     const response = await openai.chat.completions.create({
         model: 'gpt-4.1',
         messages,
-        max_tokens: 200
+        max_tokens: 1024
     });
 
     return response.choices[0].message.content.trim();
