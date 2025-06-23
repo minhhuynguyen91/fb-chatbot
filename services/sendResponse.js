@@ -34,23 +34,59 @@ async function postWithLimit(url, payload) {
   });
 }
 
+function cleanAndSplitLines(str) {
+  return str
+    .split(/\r?\n/)                // Split by line breaks (handles \n and \r\n)
+    .map(line => line.trim())      // Trim each line
+    .filter(line => line.length);  // Remove empty lines
+}
+
+async function sendImagesInBatch(senderId, imageUrls) {
+  imageUrls = cleanAndSplitLines(imageUrls);
+  console.log(imageUrls);
+  try {
+    for (const imageUrl of imageUrls) {
+      await sendImage(senderId, imageUrl); // Uses postWithLimit inside sendImage
+      await delay(500); // Avoid rate limits
+    }
+    console.log('All images sent successfully!');
+  } catch (error) {
+    console.error('Failed to send images:', error);
+  }
+}
+
+async function sendImage(senderId, imageUrl) {
+  const payload = {
+    recipient: { id: senderId },
+    message: {
+      attachment: {
+        type: 'image',
+        payload: { url: imageUrl }
+      }
+    }
+  };
+
+  try {
+    const url = `https://graph.facebook.com/v21.0/me/messages?access_token=${PAGE_ACCESS_TOKEN}`;
+    const response = await postWithLimit(url, payload);
+    console.log(`Image sent: ${imageUrl}`);
+    return response;
+  } catch (error) {
+    console.error(`Error sending image ${imageUrl}:`, error.response?.data || error.message);
+    throw error;
+  }
+}
+
 async function sendResponse(senderId, response) {
   const url = `https://graph.facebook.com/v21.0/me/messages?access_token=${PAGE_ACCESS_TOKEN}`;
   let payload;
 
+  // Batch image sending if image_url is an array
   if (response.type === 'image') {
-    payload = {
-      recipient: { id: senderId },
-      message: {
-        attachment: {
-          type: 'image',
-          payload: {
-            url: response.image_url,
-            is_reusable: true
-          },
-        },
-      },
-    };
+    await sendMessage(senderId, "Dạ ảnh của bên em đây ạ");
+    await sendImagesInBatch(senderId, response.image_url);
+    return;
+
   } else if (response.type === 'order') {
     payload = {
       messaging_type: "MESSAGE_TAG",
