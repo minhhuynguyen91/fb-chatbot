@@ -2,7 +2,6 @@ const { OpenAI } = require('openai');
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const { getSystemPrompt } = require('../reference/promptData');
 
-
 /**
  * Clean and flatten product images from productList.
  * Ensures each product image has a single, trimmed URL.
@@ -23,21 +22,22 @@ function getCleanedProductImages(productList) {
     });
 }
 
+/**
+ * Compare customer image with product images and return a structured response.
+ */
 async function compareImageWithProducts(customerImageUrl, productList) {
     const SYSTEM_PROMPT = getSystemPrompt();
     const productImages = getCleanedProductImages(productList);
 
     let prompt = `Dưới đây là một ảnh khách gửi (Ảnh khách), tiếp theo là các ảnh sản phẩm được đánh số từ 1 đến ${productImages.length}. 
-Nhiệm vụ của bạn: So sánh Ảnh khách với từng ảnh sản phẩm theo thứ tự. Nếu có ảnh sản phẩm nào giống Ảnh khách, chỉ trả về tên sản phẩm và danh mục của ảnh trùng khớp đầu tiên. Giọng điệu thân thiện với khách
-
-Nếu không, trả lời "Dạ, em không tìm thấy".\n`;
+Nhiệm vụ của bạn: So sánh Ảnh khách với từng ảnh sản phẩm theo thứ tự. 
+- Nếu có ảnh sản phẩm nào giống Ảnh khách, trả về định dạng: "*[Tên sản phẩm] ([Danh mục])*".
+- Nếu không, trả về: "Dạ, em không tìm thấy".
+Giọng điệu thân thiện với khách, chỉ trả lời theo định dạng yêu cầu.\n`;
 
     productImages.forEach((p, idx) => {
         prompt += `Ảnh ${idx + 1}: ${p.name} (${p.category})\n`;
     });
-
-    // console.log(prompt);
-    // console.log(productImages);
 
     // Build the message array with explicit text before each image
     const content = [
@@ -67,18 +67,27 @@ Nếu không, trả lời "Dạ, em không tìm thấy".\n`;
 
 /**
  * Extract product name and category from model response.
- * Supports format: "*Đầm Maxi (Áo Quần)*"
+ * Supports multiple formats: "*name (category)*", "Tên sản phẩm: name, Danh mục: category"
  */
 function extractProductInfo(modelResponse) {
-    // Match *Product Name (Category)* or similar
-    const match = modelResponse.match(/([^\*]+)\s*\(([^)]+)\)/);
-    if (match) {
-        return {
-            name: match[1].trim(),
-            category: match[2].trim()
-        };
+    let name = '', category = '';
+
+    // Format 1: *name (category)*
+    const match1 = modelResponse.match(/^\*\s*([^\*]+)\s*\(([^)]+)\)\s*\*$/);
+    if (match1) {
+        name = match1[1].trim();
+        category = match1[2].trim();
     }
-    return null;
+    // Format 2: Tên sản phẩm: name, Danh mục: category
+    else {
+        const match2 = modelResponse.match(/Tên sản phẩm:\s*([^\,]+),\s*Danh mục:\s*([^\,]+)/i);
+        if (match2) {
+            name = match2[1].trim();
+            category = match2[2].trim();
+        }
+    }
+
+    return name && category ? { name, category } : null;
 }
 
 /**
@@ -92,7 +101,9 @@ function findProductDetails({ name, category }, productList) {
     );
 }
 
-// Usage example:
+/**
+ * Compare customer image and return detailed product information.
+ */
 async function compareAndGetProductDetails(customerImageUrl, productList) {
     const modelResponse = await compareImageWithProducts(customerImageUrl, productList);
 
@@ -102,16 +113,16 @@ async function compareAndGetProductDetails(customerImageUrl, productList) {
     }
 
     const info = extractProductInfo(modelResponse);
-    if (!info) return modelResponse;
+    if (!info) return modelResponse; // Return raw response if extraction fails
 
     const product = findProductDetails(info, productList);
     if (product) {
         // Add more details as needed
         return `
 ${modelResponse}
-Giá sản phẩm: \n${product.price}
-Bảng size: \n${product.size}
-Các màu hiện có: \n${product.color}
+Giá sản phẩm: ${product.price || 'Không có thông tin'}
+Bảng size: ${product.size || 'Không có thông tin'}
+Các màu hiện có: ${product.color || 'Không có thông tin'}
 `;
     } else {
         return modelResponse;
