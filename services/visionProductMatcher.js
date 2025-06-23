@@ -124,9 +124,13 @@ async function compareAndGetProductDetails(customerImageUrl, productList) {
         // Add more details as needed
         return `
 ${modelResponse}
-Giá sản phẩm: ${product.price || 'Không có thông tin'}
-Bảng size: ${product.size || 'Không có thông tin'}
-Các màu hiện có: ${product.color || 'Không có thông tin'}
+
+Giá sản phẩm: 
+${product.price || 'Không có thông tin'}
+Bảng size: 
+${product.size || 'Không có thông tin'}
+Các màu hiện có: 
+${product.color || 'Không có thông tin'}
 `;
     } else {
         return modelResponse;
