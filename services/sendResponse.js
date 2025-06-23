@@ -43,7 +43,7 @@ function cleanAndSplitLines(str) {
 
 async function sendImagesInBatch(senderId, imageUrls) {
   imageUrls = cleanAndSplitLines(imageUrls);
-  console.log(imageUrls);
+  // console.log(imageUrls);
   try {
     for (const imageUrl of imageUrls) {
       await sendImage(senderId, imageUrl); // Uses postWithLimit inside sendImage
