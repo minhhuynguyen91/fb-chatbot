@@ -151,15 +151,10 @@ async function handleMessage(event) {
   pending.events.push({ messageText, imageUrl, timestamp: Date.now() });
   console.log('Pending events updated for sender:', senderId, JSON.stringify(pending.events, null, 2));
 
-  // Process immediately for text-only, or wait for timeout if image is involved
+  // Process based on content type
   if (!pending.processed) {
-    if (messageText && !imageUrl) {
-      // Immediate processing for text-only
-      pending.processed = true;
-      await processPendingEvents(senderId);
-      pendingEvents.delete(senderId); // Reset state after text-only processing
-    } else {
-      // Schedule processing after timeout for image-related cases
+    if (imageUrl || (messageText && pending.lock)) {
+      // Wait for timeout if image is involved or lock is active
       const timer = setTimeout(async () => {
         if (!pending.processed) {
           pending.processed = true;
@@ -173,6 +168,11 @@ async function handleMessage(event) {
       if (pending.lock) {
         await pending.resolve;
       }
+    } else if (messageText && !imageUrl) {
+      // Immediate processing for text-only when no lock
+      pending.processed = true;
+      await processPendingEvents(senderId);
+      pendingEvents.delete(senderId); // Reset state after text-only processing
     }
   }
 
