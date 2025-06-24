@@ -145,8 +145,8 @@ async function handleMessage(event) {
     });
     console.log('Setting initial lock for sender:', senderId);
   }
-  if (imageUrl) {
-    console.log('Image detected, reinforcing lock for sender:', senderId);
+  if (imageUrl && imageUrl.length > 0) {
+    console.log('Image detected, reinforcing lock for sender with URL:', imageUrl);
   }
 
   pending.events.push({ messageText, imageUrl, timestamp: Date.now() });
@@ -193,12 +193,16 @@ async function handleMessage(event) {
 
     try {
       // Handle combined text and image (prioritize image if present)
-      if (imageUrl) {
+      if (imageUrl && imageUrl.length > 0) {
         console.log('Starting image processing for sender:', senderId);
+        console.log('Validating image URL:', imageUrl);
+        if (!imageUrl.startsWith('http')) {
+          throw new Error('Invalid image URL format');
+        }
         console.log('Uploading image to Cloudinary with URL:', imageUrl);
         const uploadResp = await uploadMessengerImageToCloudinary(imageUrl, senderId);
         if (!uploadResp || !uploadResp.secure_url || !uploadResp.public_id) {
-          throw new Error('Cloudinary upload failed or returned invalid response');
+          throw new Error('Cloudinary upload failed or returned invalid response: ' + JSON.stringify(uploadResp));
         }
         console.log('Upload response:', uploadResp);
         const secure_url = uploadResp.secure_url;
@@ -207,8 +211,8 @@ async function handleMessage(event) {
         const productList = getProductDatabase();
         console.log('Comparing image with product database using URL:', secure_url);
         const visionResult = await compareAndGetProductDetails(secure_url, productList);
-        if (!visionResult) {
-          throw new Error('Vision processing returned no result');
+        if (!visionResult || visionResult.trim() === '') {
+          throw new Error('Vision processing returned no or empty result');
         }
         console.log('Vision result:', visionResult);
         let combinedMsg = visionResult;
@@ -230,7 +234,7 @@ async function handleMessage(event) {
       }
     } catch (error) {
       console.error('Processing error for sender:', senderId, 'Error:', error.message, 'Stack:', error.stack);
-      const errMsg = `Xin lỗi, em gặp lỗi khi xử lý ${imageUrl ? 'hình ảnh' : 'tin nhắn'}: ${error.message}. Vui lòng thử lại.`;
+      const errMsg = `Xin lỗi, em gặp lỗi khi xử lý ${imageUrl ? 'hình ảnh' : 'tin nhắn'}: ${error.message}. Vui lòng thử lại hoặc kiểm tra kết nối.`;
       await sendResponse(senderId, { type: 'text', content: errMsg });
       await storeAssistantMessage(senderId, errMsg);
     } finally {
