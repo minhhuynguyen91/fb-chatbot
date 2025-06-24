@@ -133,37 +133,27 @@ async function handleMessage(event) {
   const { messageText, isQuickReply } = extractMessage(event) || { messageText: '', isQuickReply: false };
   const imageUrl = extractImageUrl(event);
 
-  // Set lock if image is detected, or initialize a provisional lock for the first event
-  if (imageUrl) {
-    if (!pending.lock) {
-      pending.lock = true;
-      pending.resolve = new Promise((resolve) => {
-        setTimeout(() => {
-          resolve();
-          pending.lock = false; // Unlock after timeout
-          console.log('Unlocking process for sender:', senderId);
-        }, MESSAGE_TIMEOUT);
-      });
-      console.log('Image detected, locking process for sender:', senderId);
-    }
-  } else if (!pending.lock && pending.events.length === 0) {
-    // Provisional lock for the first text event
+  // Set or maintain lock
+  if (!pending.lock) {
     pending.lock = true;
     pending.resolve = new Promise((resolve) => {
       setTimeout(() => {
         resolve();
         pending.lock = false; // Unlock after timeout
-        console.log('Unlocking process for sender (provisional):', senderId);
+        console.log('Unlocking process for sender:', senderId);
       }, MESSAGE_TIMEOUT);
     });
-    console.log('Setting provisional lock for sender:', senderId);
+    console.log('Setting initial lock for sender:', senderId);
+  }
+  if (imageUrl) {
+    console.log('Image detected, reinforcing lock for sender:', senderId);
   }
 
   pending.events.push({ messageText, imageUrl, timestamp: Date.now() });
   console.log('Pending events updated for sender:', senderId, JSON.stringify(pending.events, null, 2));
   console.log('Lock status:', pending.lock, 'ImageUrl:', imageUrl);
 
-  // Process based on content type and lock status
+  // Process after timeout
   if (!pending.processed) {
     const timer = setTimeout(async () => {
       if (!pending.processed) {
