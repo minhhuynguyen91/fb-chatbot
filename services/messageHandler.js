@@ -151,19 +151,28 @@ async function handleMessage(event) {
   pending.events.push({ messageText, imageUrl, timestamp: Date.now() });
   console.log('Pending events updated for sender:', senderId, JSON.stringify(pending.events, null, 2));
 
-  // Always schedule processing after timeout
+  // Process immediately for text-only, or wait for timeout if image is involved
   if (!pending.processed) {
-    const timer = setTimeout(async () => {
-      if (!pending.processed) {
-        pending.processed = true;
-        await processPendingEvents(senderId);
-        clearTimeout(timer); // Clean up timer
-      }
-    }, MESSAGE_TIMEOUT);
+    if (messageText && !imageUrl) {
+      // Immediate processing for text-only
+      pending.processed = true;
+      await processPendingEvents(senderId);
+      pendingEvents.delete(senderId); // Reset state after text-only processing
+    } else {
+      // Schedule processing after timeout for image-related cases
+      const timer = setTimeout(async () => {
+        if (!pending.processed) {
+          pending.processed = true;
+          await processPendingEvents(senderId);
+          clearTimeout(timer); // Clean up timer
+          pendingEvents.delete(senderId); // Reset state after processing
+        }
+      }, MESSAGE_TIMEOUT);
 
-    // If lock is set, wait for it to resolve before allowing timer to proceed
-    if (pending.lock) {
-      await pending.resolve;
+      // If lock is set, wait for it to resolve
+      if (pending.lock) {
+        await pending.resolve;
+      }
     }
   }
 
@@ -178,12 +187,9 @@ async function handleMessage(event) {
 
     const allEvents = pending.events;
     // Aggregate text and imageUrl from all events
-    let text = '';
-    let imageUrl = '';
-    for (const evt of allEvents) {
-      if (evt.messageText) text = evt.messageText || text;
-      if (evt.imageUrl) imageUrl = evt.imageUrl || imageUrl;
-    }
+    let text = allEvents.find(evt => evt.messageText)?.messageText || '';
+    let imageUrl = allEvents.find(evt => evt.imageUrl)?.imageUrl || '';
+
     console.log('Aggregated pending event for sender:', senderId, { text, imageUrl });
 
     if (!text && !imageUrl) {
@@ -209,7 +215,7 @@ async function handleMessage(event) {
         await storeAssistantMessage(senderId, combinedMsg); // Store combined result
         await deleteFromCloudinary(public_id);
       }
-      // Handle text only (if no image after timeout)
+      // Handle text only (if no image)
       else if (text) {
         console.log('Processing text only for:', senderId);
         if (shouldStoreUserMessage(text)) {
