@@ -135,7 +135,7 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
 
         const messages = [
           { role: 'system', content: sizePrompt },
-          ...(await getHistory(senderId)).slice(-6)
+          ...(await getHistory(senderId)).slice(-10)
         ];
         const chatResponse = await openai.chat.completions.create({
           model: 'gpt-4o-mini',
@@ -181,7 +181,7 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
     `
         const messages = [
           { role: 'system', content: prompt },
-          ...(await getHistory(senderId)).slice(-6)
+          ...(await getHistory(senderId)).slice(-10)
         ];
         const chatResponse = await openai.chat.completions.create({
           model: 'gpt-4o-mini',
@@ -202,7 +202,7 @@ async function analyzeMessage(senderId, message) {
   const SYSTEM_PROMPT = getSystemPrompt();
   const PRODUCT_DATABASE = getProductDatabase();
 
-  const messages = [{ role: 'system', content: SYSTEM_PROMPT }, ...(await getHistory(senderId)).slice(-6)];
+  const messages = [{ role: 'system', content: SYSTEM_PROMPT }, ...(await getHistory(senderId)).slice(-10)];
   const result = PRODUCT_DATABASE;
   const productContext = JSON.stringify(
     [...new Set(result.map(r => r.category))].map(category => ({
