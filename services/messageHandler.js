@@ -75,27 +75,6 @@ async function storeAssistantMessage(senderId, content) {
 
 // --- Modular: Handle text message logic ---
 async function handleTextMessage(senderId, messageText) {
-  const lowerText = messageText.toLowerCase().trim();
-  if (lowerText.includes('help') || lowerText.includes('menu')) {
-    const helpMsg = 'Welcome! Type:\n- "info" for bot details\n- "support" for customer service\n- Any message for a smart reply from our AI';
-    sendMessage(senderId, helpMsg);
-    return;
-  }
-  if (lowerText.includes('info')) {
-    const infoMsg = 'This is a demo bot powered by ChatGPT, designed to answer your questions and assist via Messenger.';
-    sendMessage(senderId, infoMsg);
-    return;
-  }
-  if (lowerText.includes('support')) {
-    const supportMsg = 'Connecting you to our support team... For now, describe your issue, and our AI will assist!';
-    sendMessage(senderId, supportMsg);
-    return;
-  }
-  if (isRateLimited(senderId)) {
-    const rateMsg = 'You are sending messages too fast. Please wait a minute before trying again.';
-    sendMessage(senderId, rateMsg);
-    return;
-  }
   try {
     const aiResponse = await processMessage(senderId, messageText);
     sendResponse(senderId, aiResponse);
@@ -224,7 +203,7 @@ async function handleMessage(event) {
         if (!visionResult || visionResult.trim() === '') {
           throw new Error('Vision processing returned no or empty result');
         }
-        console.log('Vision result:', visionResult);
+        //console.log('Vision result:', visionResult);
         let combinedMsg = visionResult;
         if (text) {
           combinedMsg = `Dạ, ${text} Em nhận diện được sản phẩm giống với ảnh là:\n${visionResult}`;
