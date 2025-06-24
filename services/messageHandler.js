@@ -134,14 +134,21 @@ async function handleMessage(event) {
   const { messageText, isQuickReply } = extractMessage(event) || { messageText: '', isQuickReply: false };
   const imageUrl = extractImageUrl(event);
 
-  // Set or maintain lock only once per session
+  // Set lock only if not already set
   if (!pending.lock) {
     pending.lock = true;
     pending.resolve = new Promise((resolve) => {
-      setTimeout(() => {
+      setTimeout(async () => {
         resolve();
-        pending.lock = false; // Unlock after timeout
+        pending.lock = false;
         console.log('Unlocking process for sender:', senderId, 'Pending state:', JSON.stringify(pending));
+        if (!pending.processed) {
+          pending.processed = true;
+          console.log('Processing all pending events for sender:', senderId, 'Final events:', JSON.stringify(pending.events));
+          await processPendingEvents(senderId);
+          pendingEvents.delete(senderId);
+          console.log('Cleared pending events for sender:', senderId);
+        }
       }, MESSAGE_TIMEOUT);
     });
     console.log('Setting initial lock for sender:', senderId);
@@ -154,23 +161,9 @@ async function handleMessage(event) {
   console.log('Pending events updated for sender:', senderId, 'Events:', JSON.stringify(pending.events));
   console.log('Current pending state:', JSON.stringify(pending));
 
-  // Process only after the final timeout
-  if (!pending.processed) {
-    const timer = setTimeout(async () => {
-      if (!pending.processed) {
-        pending.processed = true;
-        console.log('Processing all pending events for sender:', senderId, 'Final events:', JSON.stringify(pending.events));
-        await processPendingEvents(senderId);
-        clearTimeout(timer); // Clean up timer
-        pendingEvents.delete(senderId); // Reset state after processing
-        console.log('Cleared pending events for sender:', senderId);
-      }
-    }, MESSAGE_TIMEOUT);
-
-    // Wait for lock resolution if set
-    if (pending.lock) {
-      await pending.resolve;
-    }
+  // Wait for lock resolution if set
+  if (pending.lock) {
+    await pending.resolve;
   }
 
   return;
