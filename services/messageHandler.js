@@ -199,7 +199,7 @@ async function handleMessage(event) {
 
         const productList = getProductDatabase();
         console.log('Comparing image with product database using URL:', secure_url);
-        const visionResult = await compareAndGetProductDetails(secure_url, productList);
+        const visionResult = await compareAndGetProductDetails(secure_url, productList, senderId);
         if (!visionResult || visionResult.trim() === '') {
           throw new Error('Vision processing returned no or empty result');
         }

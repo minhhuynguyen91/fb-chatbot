@@ -1,6 +1,7 @@
 const { OpenAI } = require('openai');
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const { getSystemPrompt } = require('../reference/promptData');
+const getUserProfile = require('./getUserProfile.js');
 
 /**
  * Clean and flatten product images from productList.
@@ -25,14 +26,15 @@ function getCleanedProductImages(productList) {
 /**
  * Compare customer image with product images and return a structured response.
  */
-async function compareImageWithProducts(customerImageUrl, productList) {
+async function compareImageWithProducts(customerImageUrl, productList, senderId) {
     const SYSTEM_PROMPT = getSystemPrompt();
     const productImages = getCleanedProductImages(productList);
+    const userProfile = getUserProfile(senderId);
 
     let prompt = `Dưới đây là một ảnh khách gửi (Ảnh khách), tiếp theo là các ảnh sản phẩm được đánh số từ 1 đến ${productImages.length}. 
 Nhiệm vụ của bạn: So sánh Ảnh khách với từng ảnh sản phẩm theo thứ tự. 
 - Nếu có ảnh sản phẩm nào giống Ảnh khách, trả về định dạng: 
-    Dạ sản phẩm giống với ảnh của khách là:
+    Dạ ${userProfile.first_name} ${userProfile.last_name} sản phẩm giống với ảnh là:
     **[Tên sản phẩm] ([Danh mục])**.
 
 - Chỉ trả về tên sản phẩm và danh mục của ảnh trùng khớp đầu tiên
@@ -108,8 +110,8 @@ function findProductDetails({ name, category }, productList) {
 /**
  * Compare customer image and return detailed product information.
  */
-async function compareAndGetProductDetails(customerImageUrl, productList) {
-    const modelResponse = await compareImageWithProducts(customerImageUrl, productList);
+async function compareAndGetProductDetails(customerImageUrl, productList, senderId) {
+    const modelResponse = await compareImageWithProducts(customerImageUrl, productList, senderId);
 
     // If not found, return as is
     if (/không tìm thấy/i.test(modelResponse)) {
