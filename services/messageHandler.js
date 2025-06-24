@@ -1,24 +1,29 @@
-// Import rate limiting utility
+// Import required utilities
 const { isRateLimited } = require('./rateLimit');
-// Import message history utilities (store/retrieve)
 const { storeMessage, getHistory } = require('./messageHistory');
-// Import message processing logic (OpenAI, intent, etc.)
 const { processMessage } = require('./processMessage');
-// Import response sending helpers (text/image to Messenger)
 const { sendResponse, sendMessage } = require('./sendResponse');
-// Import system prompt for OpenAI context
 const { getSystemPrompt } = require('../reference/promptData');
-// Import image comparison
 const { compareAndGetProductDetails } = require('./visionProductMatcher');
-// Get product database
 const { getProductDatabase } = require('../db/productInfo.js');
-// Cloudinary utilities
 const { uploadMessengerImageToCloudinary, deleteFromCloudinary } = require('./cloudinary/cloudinaryUploader');
 
-// Store recent message IDs and their pending events per sender
-const processedMessages = new Map(); // Use Map to store sender-specific processed IDs
-const pendingEvents = new Map(); // Keyed by senderId
+// Store recent message IDs and their pending events per sender with TTL
+const processedMessages = new Map(); // Key: senderId, Value: Set of messageIds with TTL
+const pendingEvents = new Map(); // Key: senderId, Value: pending state
 const MESSAGE_TIMEOUT = 5000; // 5 seconds to allow event aggregation
+
+// Utility to manage TTL for processed messages
+function updateProcessedMessages(senderId, messageId) {
+  let senderSet = processedMessages.get(senderId);
+  if (!senderSet) {
+    senderSet = new Set();
+    processedMessages.set(senderId, senderSet);
+  }
+  senderSet.add(messageId);
+  // Clean up old entries (1-hour TTL)
+  setTimeout(() => senderSet.delete(messageId), 3600000); // 1 hour TTL
+}
 
 // Define shouldStoreUserMessage
 function shouldStoreUserMessage(messageText) {
@@ -141,14 +146,13 @@ async function handleMessage(event) {
     pending.timer = setTimeout(async () => {
       pending.lock = false;
       console.log('Unlocking process for sender:', senderId, 'Pending state:', JSON.stringify({ ...pending, timer: 'Timeout Object' }));
-      if (!pending.processed) {
+      if (pending.events.length > 0) {
         pending.processed = true;
         console.log('Processing all pending events for sender:', senderId, 'Final events:', JSON.stringify(pending.events));
         await processPendingEvents(senderId);
         clearTimeout(pending.timer);
         pendingEvents.delete(senderId);
-        processedMessages.delete(senderId); // Clear processed messages for this sender
-        console.log('Cleared pending and processed events for sender:', senderId);
+        console.log('Cleared pending events for sender:', senderId);
       }
     }, MESSAGE_TIMEOUT);
     console.log('Setting initial lock for sender:', senderId, 'Timer set at:', new Date().toISOString());
@@ -157,14 +161,13 @@ async function handleMessage(event) {
     pending.timer = setTimeout(async () => {
       pending.lock = false;
       console.log('Reset and unlocking process for sender:', senderId, 'Pending state:', JSON.stringify({ ...pending, timer: 'Timeout Object' }));
-      if (!pending.processed) {
+      if (pending.events.length > 0) {
         pending.processed = true;
         console.log('Processing all pending events for sender:', senderId, 'Final events:', JSON.stringify(pending.events));
         await processPendingEvents(senderId);
         clearTimeout(pending.timer);
         pendingEvents.delete(senderId);
-        processedMessages.delete(senderId); // Clear processed messages for this sender
-        console.log('Cleared pending and processed events for sender:', senderId);
+        console.log('Cleared pending events for sender:', senderId);
       }
     }, MESSAGE_TIMEOUT);
     console.log('Reset timer for sender:', senderId, 'New timer set at:', new Date().toISOString());
@@ -174,8 +177,7 @@ async function handleMessage(event) {
   }
 
   pending.events.push({ messageText, imageUrl, timestamp: Date.now() });
-  senderProcessed.add(messageId);
-  processedMessages.set(senderId, senderProcessed);
+  updateProcessedMessages(senderId, messageId); // Mark as processed with TTL
   console.log('Pending events updated for sender:', senderId, 'Events:', JSON.stringify(pending.events));
 
   return;
@@ -188,8 +190,8 @@ async function handleMessage(event) {
     }
 
     const allEvents = pending.events;
-    // Aggregate text and imageUrl from all events
-    let text = allEvents.find(evt => evt.messageText)?.messageText || '';
+    // Aggregate text and imageUrl from all events, taking the latest text
+    let text = allEvents.filter(evt => evt.messageText).pop()?.messageText || '';
     let imageUrl = allEvents.find(evt => evt.imageUrl)?.imageUrl || '';
 
     console.log('Aggregated pending event for sender:', senderId, { text, imageUrl });
