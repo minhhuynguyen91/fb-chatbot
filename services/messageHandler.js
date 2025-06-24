@@ -134,23 +134,25 @@ async function handleMessage(event) {
   const imageUrl = extractImageUrl(event);
 
   // Set or maintain lock if image is detected
-  if (imageUrl && !pending.lock) {
-    pending.lock = true;
-    pending.resolve = new Promise((resolve) => {
-      setTimeout(() => {
-        resolve();
-        pending.lock = false; // Unlock after timeout
-        console.log('Unlocking process for sender:', senderId);
-      }, MESSAGE_TIMEOUT);
-    });
-    console.log('Image detected, locking process for sender:', senderId);
+  if (imageUrl) {
+    if (!pending.lock) {
+      pending.lock = true;
+      pending.resolve = new Promise((resolve) => {
+        setTimeout(() => {
+          resolve();
+          pending.lock = false; // Unlock after timeout
+          console.log('Unlocking process for sender:', senderId);
+        }, MESSAGE_TIMEOUT);
+      });
+      console.log('Image detected, locking process for sender:', senderId);
+    }
   } else if (pending.lock) {
     console.log('Process already locked for sender:', senderId);
   }
 
   pending.events.push({ messageText, imageUrl, timestamp: Date.now() });
-  console.log('Lock status:', pending.lock, 'ImageUrl:', imageUrl);
   console.log('Pending events updated for sender:', senderId, JSON.stringify(pending.events, null, 2));
+  console.log('Lock status:', pending.lock, 'ImageUrl:', imageUrl);
 
   // Process based on content type and lock status
   if (!pending.processed) {
@@ -169,8 +171,8 @@ async function handleMessage(event) {
       if (pending.lock) {
         await pending.resolve;
       }
-    } else if (messageText && !pending.lock && !imageUrl) {
-      // Immediate processing for text-only when no lock or image
+    } else if (messageText && !pending.lock && !imageUrl && pending.events.length === 1) {
+      // Immediate processing for standalone text-only when no lock or image
       pending.processed = true;
       await processPendingEvents(senderId);
       pendingEvents.delete(senderId); // Reset state after text-only processing
