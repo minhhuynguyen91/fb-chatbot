@@ -16,7 +16,7 @@ const { getProductDatabase } = require('../db/productInfo.js');
 const { uploadMessengerImageToCloudinary, deleteFromCloudinary } = require('./cloudinary/cloudinaryUploader');
 
 // Store recent message IDs and their pending events per sender
-const processedMessages = new Set();
+const processedMessages = new Map(); // Use Map to store sender-specific processed IDs
 const pendingEvents = new Map(); // Keyed by senderId
 const MESSAGE_TIMEOUT = 5000; // 5 seconds to allow event aggregation
 
@@ -118,16 +118,17 @@ async function handleMessage(event) {
   const messageId = event.message?.mid || `${senderId}_${Date.now()}`;
   console.log('Processing messageId:', messageId, 'Event:', JSON.stringify(event, null, 2));
 
-  // Skip if message was recently processed
-  if (processedMessages.has(messageId)) {
-    console.log('Message already processed, skipping:', messageId);
+  // Skip if message was recently processed for this sender
+  const senderProcessed = processedMessages.get(senderId) || new Set();
+  if (senderProcessed.has(messageId)) {
+    console.log('Message already processed for sender, skipping:', messageId);
     return;
   }
 
   // Use senderId as the key for pending events
   let pending = pendingEvents.get(senderId);
   if (!pending) {
-    pending = { events: [], lock: false, resolve: null, processed: false, timer: null, timestamp: Date.now() };
+    pending = { events: [], lock: false, timer: null, timestamp: Date.now() };
     pendingEvents.set(senderId, pending);
   }
 
@@ -139,14 +140,15 @@ async function handleMessage(event) {
     pending.lock = true;
     pending.timer = setTimeout(async () => {
       pending.lock = false;
-      console.log('Unlocking process for sender:', senderId, 'Pending state:', JSON.stringify(pending));
+      console.log('Unlocking process for sender:', senderId, 'Pending state:', JSON.stringify({ ...pending, timer: 'Timeout Object' }));
       if (!pending.processed) {
         pending.processed = true;
         console.log('Processing all pending events for sender:', senderId, 'Final events:', JSON.stringify(pending.events));
         await processPendingEvents(senderId);
         clearTimeout(pending.timer);
         pendingEvents.delete(senderId);
-        console.log('Cleared pending events for sender:', senderId);
+        processedMessages.delete(senderId); // Clear processed messages for this sender
+        console.log('Cleared pending and processed events for sender:', senderId);
       }
     }, MESSAGE_TIMEOUT);
     console.log('Setting initial lock for sender:', senderId, 'Timer set at:', new Date().toISOString());
@@ -154,14 +156,15 @@ async function handleMessage(event) {
     clearTimeout(pending.timer);
     pending.timer = setTimeout(async () => {
       pending.lock = false;
-      console.log('Reset and unlocking process for sender:', senderId, 'Pending state:', JSON.stringify(pending));
+      console.log('Reset and unlocking process for sender:', senderId, 'Pending state:', JSON.stringify({ ...pending, timer: 'Timeout Object' }));
       if (!pending.processed) {
         pending.processed = true;
         console.log('Processing all pending events for sender:', senderId, 'Final events:', JSON.stringify(pending.events));
         await processPendingEvents(senderId);
         clearTimeout(pending.timer);
         pendingEvents.delete(senderId);
-        console.log('Cleared pending events for sender:', senderId);
+        processedMessages.delete(senderId); // Clear processed messages for this sender
+        console.log('Cleared pending and processed events for sender:', senderId);
       }
     }, MESSAGE_TIMEOUT);
     console.log('Reset timer for sender:', senderId, 'New timer set at:', new Date().toISOString());
@@ -171,8 +174,9 @@ async function handleMessage(event) {
   }
 
   pending.events.push({ messageText, imageUrl, timestamp: Date.now() });
+  senderProcessed.add(messageId);
+  processedMessages.set(senderId, senderProcessed);
   console.log('Pending events updated for sender:', senderId, 'Events:', JSON.stringify(pending.events));
-  console.log('Current pending state:', JSON.stringify(pending));
 
   return;
 
@@ -241,8 +245,6 @@ async function handleMessage(event) {
       const errMsg = `Xin lỗi, em gặp lỗi khi xử lý ${imageUrl ? 'hình ảnh' : 'tin nhắn'}: ${error.message}. Vui lòng thử lại hoặc kiểm tra kết nối.`;
       await sendResponse(senderId, { type: 'text', content: errMsg });
       await storeAssistantMessage(senderId, errMsg);
-    } finally {
-      pendingEvents.delete(senderId); // Clean up after processing
     }
   }
 }
