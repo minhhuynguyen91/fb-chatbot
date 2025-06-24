@@ -127,44 +127,52 @@ async function handleMessage(event) {
   // Use senderId as the key for pending events
   let pending = pendingEvents.get(senderId);
   if (!pending) {
-    pending = { events: [], lock: false, resolve: null, processed: false, timestamp: Date.now() };
+    pending = { events: [], lock: false, resolve: null, processed: false, timer: null, timestamp: Date.now() };
     pendingEvents.set(senderId, pending);
   }
 
   const { messageText, isQuickReply } = extractMessage(event) || { messageText: '', isQuickReply: false };
   const imageUrl = extractImageUrl(event);
 
-  // Set lock only if not already set
+  // Set or reset lock and timer
   if (!pending.lock) {
     pending.lock = true;
-    pending.resolve = new Promise((resolve) => {
-      setTimeout(async () => {
-        resolve();
-        pending.lock = false;
-        console.log('Unlocking process for sender:', senderId, 'Pending state:', JSON.stringify(pending));
-        if (!pending.processed) {
-          pending.processed = true;
-          console.log('Processing all pending events for sender:', senderId, 'Final events:', JSON.stringify(pending.events));
-          await processPendingEvents(senderId);
-          pendingEvents.delete(senderId);
-          console.log('Cleared pending events for sender:', senderId);
-        }
-      }, MESSAGE_TIMEOUT);
-    });
-    console.log('Setting initial lock for sender:', senderId);
+    pending.timer = setTimeout(async () => {
+      pending.lock = false;
+      console.log('Unlocking process for sender:', senderId, 'Pending state:', JSON.stringify(pending));
+      if (!pending.processed) {
+        pending.processed = true;
+        console.log('Processing all pending events for sender:', senderId, 'Final events:', JSON.stringify(pending.events));
+        await processPendingEvents(senderId);
+        clearTimeout(pending.timer);
+        pendingEvents.delete(senderId);
+        console.log('Cleared pending events for sender:', senderId);
+      }
+    }, MESSAGE_TIMEOUT);
+    console.log('Setting initial lock for sender:', senderId, 'Timer set at:', new Date().toISOString());
+  } else if (pending.timer) {
+    clearTimeout(pending.timer);
+    pending.timer = setTimeout(async () => {
+      pending.lock = false;
+      console.log('Reset and unlocking process for sender:', senderId, 'Pending state:', JSON.stringify(pending));
+      if (!pending.processed) {
+        pending.processed = true;
+        console.log('Processing all pending events for sender:', senderId, 'Final events:', JSON.stringify(pending.events));
+        await processPendingEvents(senderId);
+        clearTimeout(pending.timer);
+        pendingEvents.delete(senderId);
+        console.log('Cleared pending events for sender:', senderId);
+      }
+    }, MESSAGE_TIMEOUT);
+    console.log('Reset timer for sender:', senderId, 'New timer set at:', new Date().toISOString());
   }
   if (imageUrl && imageUrl.length > 0) {
-    console.log('Image detected, reinforcing lock for sender with URL:', imageUrl);
+    console.log('Image detected, resetting lock for sender with URL:', imageUrl);
   }
 
   pending.events.push({ messageText, imageUrl, timestamp: Date.now() });
   console.log('Pending events updated for sender:', senderId, 'Events:', JSON.stringify(pending.events));
   console.log('Current pending state:', JSON.stringify(pending));
-
-  // Wait for lock resolution if set
-  if (pending.lock) {
-    await pending.resolve;
-  }
 
   return;
 
