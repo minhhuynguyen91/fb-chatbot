@@ -125,22 +125,23 @@ async function handleMessage(event) {
   }
 
   // Use senderId as the key for pending events
-  if (!pendingEvents.has(senderId)) {
-    pendingEvents.set(senderId, { events: [], lock: false, resolve: null, processed: false, timestamp: Date.now() });
+  let pending = pendingEvents.get(senderId);
+  if (!pending) {
+    pending = { events: [], lock: false, resolve: null, processed: false, timestamp: Date.now() };
+    pendingEvents.set(senderId, pending);
   }
 
-  const pending = pendingEvents.get(senderId);
   const { messageText, isQuickReply } = extractMessage(event) || { messageText: '', isQuickReply: false };
   const imageUrl = extractImageUrl(event);
 
-  // Set or maintain lock
+  // Set or maintain lock only once per session
   if (!pending.lock) {
     pending.lock = true;
     pending.resolve = new Promise((resolve) => {
       setTimeout(() => {
         resolve();
         pending.lock = false; // Unlock after timeout
-        console.log('Unlocking process for sender:', senderId);
+        console.log('Unlocking process for sender:', senderId, 'Pending state:', JSON.stringify(pending));
       }, MESSAGE_TIMEOUT);
     });
     console.log('Setting initial lock for sender:', senderId);
@@ -150,21 +151,23 @@ async function handleMessage(event) {
   }
 
   pending.events.push({ messageText, imageUrl, timestamp: Date.now() });
-  console.log('Pending events updated for sender:', senderId, JSON.stringify(pending.events, null, 2));
-  console.log('Lock status:', pending.lock, 'ImageUrl:', imageUrl);
+  console.log('Pending events updated for sender:', senderId, 'Events:', JSON.stringify(pending.events));
+  console.log('Current pending state:', JSON.stringify(pending));
 
-  // Process after timeout
+  // Process only after the final timeout
   if (!pending.processed) {
     const timer = setTimeout(async () => {
       if (!pending.processed) {
         pending.processed = true;
+        console.log('Processing all pending events for sender:', senderId, 'Final events:', JSON.stringify(pending.events));
         await processPendingEvents(senderId);
         clearTimeout(timer); // Clean up timer
         pendingEvents.delete(senderId); // Reset state after processing
+        console.log('Cleared pending events for sender:', senderId);
       }
     }, MESSAGE_TIMEOUT);
 
-    // If lock is set, wait for it to resolve
+    // Wait for lock resolution if set
     if (pending.lock) {
       await pending.resolve;
     }
