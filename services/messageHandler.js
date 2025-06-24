@@ -133,7 +133,7 @@ async function handleMessage(event) {
   const { messageText, isQuickReply } = extractMessage(event) || { messageText: '', isQuickReply: false };
   const imageUrl = extractImageUrl(event);
 
-  // Set or maintain lock if image is detected
+  // Set lock if image is detected, or initialize a provisional lock for the first event
   if (imageUrl) {
     if (!pending.lock) {
       pending.lock = true;
@@ -146,8 +146,17 @@ async function handleMessage(event) {
       });
       console.log('Image detected, locking process for sender:', senderId);
     }
-  } else if (pending.lock) {
-    console.log('Process already locked for sender:', senderId);
+  } else if (!pending.lock && pending.events.length === 0) {
+    // Provisional lock for the first text event
+    pending.lock = true;
+    pending.resolve = new Promise((resolve) => {
+      setTimeout(() => {
+        resolve();
+        pending.lock = false; // Unlock after timeout
+        console.log('Unlocking process for sender (provisional):', senderId);
+      }, MESSAGE_TIMEOUT);
+    });
+    console.log('Setting provisional lock for sender:', senderId);
   }
 
   pending.events.push({ messageText, imageUrl, timestamp: Date.now() });
@@ -156,26 +165,18 @@ async function handleMessage(event) {
 
   // Process based on content type and lock status
   if (!pending.processed) {
-    if (pending.lock || imageUrl) {
-      // Wait for timeout if lock is active or image is present
-      const timer = setTimeout(async () => {
-        if (!pending.processed) {
-          pending.processed = true;
-          await processPendingEvents(senderId);
-          clearTimeout(timer); // Clean up timer
-          pendingEvents.delete(senderId); // Reset state after processing
-        }
-      }, MESSAGE_TIMEOUT);
-
-      // If lock is set, wait for it to resolve
-      if (pending.lock) {
-        await pending.resolve;
+    const timer = setTimeout(async () => {
+      if (!pending.processed) {
+        pending.processed = true;
+        await processPendingEvents(senderId);
+        clearTimeout(timer); // Clean up timer
+        pendingEvents.delete(senderId); // Reset state after processing
       }
-    } else if (messageText && !pending.lock && !imageUrl && pending.events.length === 1) {
-      // Immediate processing for standalone text-only when no lock or image
-      pending.processed = true;
-      await processPendingEvents(senderId);
-      pendingEvents.delete(senderId); // Reset state after text-only processing
+    }, MESSAGE_TIMEOUT);
+
+    // If lock is set, wait for it to resolve
+    if (pending.lock) {
+      await pending.resolve;
     }
   }
 
