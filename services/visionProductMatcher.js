@@ -29,7 +29,7 @@ function getCleanedProductImages(productList) {
 async function compareImageWithProducts(customerImageUrl, productList, senderId) {
     const SYSTEM_PROMPT = getSystemPrompt();
     const productImages = getCleanedProductImages(productList);
-    const userProfile = getUserProfile(senderId);
+    const userProfile = await getUserProfile(senderId);
 
     let prompt = `Dưới đây là một ảnh khách gửi (Ảnh khách), tiếp theo là các ảnh sản phẩm được đánh số từ 1 đến ${productImages.length}. 
 Nhiệm vụ của bạn: So sánh Ảnh khách với từng ảnh sản phẩm theo thứ tự. 
