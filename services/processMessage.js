@@ -1,6 +1,6 @@
 const { OpenAI } = require('openai');
 const { getSystemPrompt } = require('../reference/promptData');
-const {getProductDatabase} = require('../db/productInfo.js');
+const { getProductDatabase } = require('../db/productInfo.js');
 const { getHistory } = require('./messageHistory');
 const { getPartialOrder, setPartialOrder, clearPartialOrder } = require('./partialOrderStore');
 const pool = require('../db/pool.js');
@@ -8,17 +8,16 @@ const getUserProfile = require('./getUserProfile.js');
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-
 async function processMessage(senderId, message) {
   const SYSTEM_PROMPT = getSystemPrompt();
   const PRODUCT_DATABASE = getProductDatabase();
   try {
     const analysis = await analyzeMessage(senderId, message);
     return await handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT);
-    } catch (error) {
-      console.error('Error processing message:', error);
-      return { type: 'text', content: 'Sorry, something went wrong!' };
-    }
+  } catch (error) {
+    console.error('Error processing message:', error);
+    return { type: 'text', content: 'Sorry, something went wrong!' };
+  }
 }
 
 // Merge only non-empty new fields into previous order
@@ -33,59 +32,97 @@ function mergeOrderInfo(prevOrder, newInfo) {
   return merged;
 }
 
+// Generate GPT-based proactive prompt to encourage ordering
+async function getGptProactivePrompt(senderId, entities, prevOrder, userProfile, PRODUCT_DATABASE, SYSTEM_PROMPT) {
+  const { product, category } = entities || {};
+  const userName = userProfile ? `${userProfile.first_name} ${userProfile.last_name}` : 'khách';
+  const history = (await getHistory(senderId)).slice(-10);
+  const partialOrderFields = prevOrder ? Object.entries(prevOrder)
+    .filter(([_, value]) => value && value.toString().trim() !== '')
+    .map(([key, value]) => `${key}: ${value}`)
+    .join(', ') : 'không có';
+
+  const prompt = `
+${SYSTEM_PROMPT}
+
+Bạn là trợ lý bán hàng thân thiện và chuyên nghiệp cho một cửa hàng thương mại điện tử, luôn xưng là "em" và gọi khách hàng là theo tên (${userName}). Nhiệm vụ của bạn là tạo một câu gợi ý ngắn gọn, tự nhiên và hấp dẫn để khuyến khích khách hàng đặt hàng hoặc tiếp tục cung cấp thông tin đặt hàng, dựa trên ngữ cảnh hội thoại hiện tại.
+
+Ngữ cảnh:
+- Danh mục sản phẩm: ${[...new Set(PRODUCT_DATABASE.map(r => r.category))].join(', ')}
+- Sản phẩm hiện tại (nếu được đề cập): ${product || 'không có'}
+- Danh mục hiện tại (nếu được đề cập): ${category || 'không có'}
+- Thông tin đơn hàng tạm thời (nếu có): ${partialOrderFields}
+- Lịch sử hội thoại (6 tin nhắn gần nhất): ${JSON.stringify(history)}
+
+Yêu cầu:
+- Nếu khách hàng đã cung cấp một phần thông tin đơn hàng, hãy nhẹ nhàng yêu cầu cung cấp các thông tin còn thiếu (ví dụ: tên, địa chỉ, số điện thoại, tên sản phẩm, màu sắc, kích cỡ, số lượng) một cách tự nhiên.
+- Nếu sản phẩm hoặc danh mục được đề cập, hãy gợi ý đặt hàng cho sản phẩm/danh mục đó, đề cập cụ thể nếu có thể.
+- Nếu không có thông tin sản phẩm hoặc đơn hàng, hãy đưa ra gợi ý chung để xem hoặc đặt hàng.
+- Giữ giọng điệu thân thiện, lịch sự, tự nhiên, bằng tiếng Việt.
+- Câu trả lời ngắn gọn (1-2 câu, tối đa 50 token).
+- Tránh lặp lại hoặc gây cảm giác ép buộc.
+
+Định dạng đầu ra:
+Trả về một chuỗi văn bản thuần túy (không JSON, không markdown).
+
+Ví dụ đầu ra:
+- "${userName} muốn đặt áo sơ mi trắng này không ạ? Chỉ cần cho em thêm địa chỉ và số điện thoại nhé!"
+- "${userName} đã chọn size M, em cần thêm tên và địa chỉ để hoàn tất đơn hàng ạ!"
+- "${userName} muốn em giới thiệu thêm sản phẩm nào để đặt hàng hôm nay không ạ?"
+  `;
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 50,
+      temperature: 0.7,
+    });
+    return response.choices[0].message.content.trim();
+  } catch (error) {
+    console.error('Error generating proactive prompt:', error);
+    return ''; // Fallback to no prompt if API fails
+  }
+}
+
 async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT) {
   const { intent, entities } = analysis;
   const { product, category } = entities || {};
+  const userProfile = await getUserProfile(senderId);
+  const prevOrder = getPartialOrder(senderId);
+  let response;
 
   switch (intent) {
     case 'image': {
       const image = (await searchProduct(PRODUCT_DATABASE, product, category))?.[0];
-      if (image) {
-        return { type: 'image', image_url: image.image_url };
-      } else {
-        return { type: 'text', content: 'Không tìm thấy ảnh, vui lòng chọn sản phẩm khác ạ' };
-      }
+      response = image
+        ? { type: 'image', image_url: image.image_url }
+        : { type: 'text', content: 'Không tìm thấy ảnh, vui lòng chọn sản phẩm khác ạ' };
+      break;
     }
     case 'product_details': {
       const targetProduct = (await searchProduct(PRODUCT_DATABASE, product, category))?.[0];
-      if (targetProduct) {
-        const detailText = (targetProduct.product_details || '').trim();
-        console.log(detailText);
-        return { type: 'text', content: detailText || 'Hiện tại bên em chưa có thông tin cho sản phẩm này, vui lòng liên hệ để biết thêm chi tiết ạ!' };
-      } else {
-        return { type: 'text', content: 'Hiện tại bên em ko tìm thấy thông tin của sản phẩm này' };
-      }
+      response = targetProduct
+        ? { type: 'text', content: (targetProduct.product_details || '').trim() || 'Hiện tại bên em chưa có thông tin cho sản phẩm này, vui lòng liên hệ để biết thêm chi tiết ạ!' }
+        : { type: 'text', content: 'Hiện tại bên em ko tìm thấy thông tin của sản phẩm này' };
+      break;
     }
     case 'price': {
       const targetProduct = (await searchProduct(PRODUCT_DATABASE, product, category))?.[0];
-      if (targetProduct) {
-        const priceText = (targetProduct.price || '').trim();
-        console.log(priceText);
-        return { type: 'text', content: priceText || 'Hiện tại bên em chưa có giá cho sản phẩm này, vui lòng liên hệ để biết thêm chi tiết ạ!' };
-      } else {
-        return { type: 'text', content: 'Hiện tại bên em ko tìm thấy giá sản phẩm, vui lòng tìm sản phẩm khác ạ' };
-      }
+      response = targetProduct
+        ? { type: 'text', content: (targetProduct.price || '').trim() || 'Hiện tại bên em chưa có giá cho sản phẩm này, vui lòng liên hệ để biết thêm chi tiết ạ!' }
+        : { type: 'text', content: 'Hiện tại bên em ko tìm thấy giá sản phẩm, vui lòng tìm sản phẩm khác ạ' };
+      break;
     }
-
     case 'order_info': {
-      // Get previous partial order for this user
-      const prevOrder = getPartialOrder(senderId);
-
-      // Try to get new info from entities.order_info, or fallback to direct fields
       let newInfo = entities.order_info || {};
-
-      // Fallback: If order_info is empty, but a single field is present at the root, use it
       const possibleFields = ['name', 'address', 'phone', 'product_name', 'color', 'size', 'quantity'];
       if (Object.keys(newInfo).length === 0) {
         possibleFields.forEach(field => {
           if (entities[field]) newInfo[field] = entities[field];
         });
       }
-
-      // Merge new info with previous info, only non-empty fields overwrite
       const orderInfo = mergeOrderInfo(prevOrder, newInfo);
-
-      // List required fields
       const requiredFields = possibleFields;
       const fieldNames = {
         name: 'tên người nhận',
@@ -97,112 +134,95 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
         quantity: 'số lượng'
       };
       const missingFields = requiredFields.filter(field => !orderInfo[field] || orderInfo[field].toString().trim() === '');
-
       if (missingFields.length > 0) {
-        // Save the merged partial order for next turn
         setPartialOrder(senderId, orderInfo);
-        const missingList = missingFields.map(f => fieldNames[f] || f).join(', ');
-        return {
-          type: 'text',
-          content: `Vui lòng cung cấp thêm thông tin ạ: ${missingList}.`
-        };
+        const missingList = missingFields.map(f => fieldNames[f]).join(', ');
+        response = { type: 'text', content: `Vui lòng cung cấp thêm thông tin ạ: ${missingList}.` };
+      } else {
+        await saveOrderInfo(senderId, orderInfo);
+        clearPartialOrder(senderId);
+        response = { type: 'order', content: 'Thông tin đặt hàng đã được lưu. Cảm ơn ạ!' };
       }
-
-      // All fields present, save to DB and clear partial order
-      await saveOrderInfo(senderId, orderInfo);
-      clearPartialOrder(senderId);
-      return { type: 'order', content: 'Thông tin đặt hàng đã được lưu. Cảm ơn ạ!' };
+      break;
     }
-
     case 'size': {
-      // Extract customer info (weight, height) from entities if available
       const customerWeight = entities.weight || '';
       const customerHeight = entities.height || '';
       const targetProduct = (await searchProduct(PRODUCT_DATABASE, product, category))?.[0];
-
       if (targetProduct && (customerWeight || customerHeight)) {
-        // Compose a prompt for ChatGPT to recommend a size
         const sizePrompt = `
-    Sản phẩm: ${targetProduct.product}
-    Danh mục: ${targetProduct.category}
-    Thông tin khách hàng: ${customerWeight ? `Cân nặng: ${customerWeight}` : ''} ${customerHeight ? `Chiều cao: ${customerHeight}` : ''}
-    Bảng size sản phẩm: 
-    ${(targetProduct.size || '').trim()}
-
-    Dựa vào thông tin trên, hãy tư vấn size phù hợp cho khách hàng bằng tiếng Việt, ngắn gọn, thân thiện.
-    Luôn xưng bản thân là em.
+Sản phẩm: ${targetProduct.product}
+Danh mục: ${targetProduct.category}
+Thông tin khách hàng: ${customerWeight ? `Cân nặng: ${customerWeight}` : ''} ${customerHeight ? `Chiều cao: ${customerHeight}` : ''}
+Bảng size sản phẩm: ${(targetProduct.size || '').trim()}
+Dựa vào thông tin trên, hãy tư vấn size phù hợp cho khách hàng bằng tiếng Việt, ngắn gọn, thân thiện.
+Luôn xưng bản thân là em.
         `.trim();
-
         const messages = [
           { role: 'system', content: sizePrompt },
-          ...(await getHistory(senderId)).slice(-10)
+          ...(await getHistory(senderId)).slice(-6)
         ];
         const chatResponse = await openai.chat.completions.create({
           model: 'gpt-4o-mini',
           messages,
-          max_tokens: 1024
+          max_tokens: 150
         });
-        const responseText = chatResponse.choices[0].message.content.trim();
-        return { type: 'text', content: responseText };
+        response = { type: 'text', content: chatResponse.choices[0].message.content.trim() };
       } else if (!customerWeight && !customerHeight) {
-        return { type: 'text', content: 'Vui lòng cung cấp cân nặng và/hoặc chiều cao để được tư vấn size phù hợp nhé!' };
+        response = { type: 'text', content: 'Vui lòng cung cấp cân nặng và/hoặc chiều cao để được tư vấn size phù hợp nhé!' };
       } else {
-        return { type: 'text', content: 'Không tìm thấy sản phẩm hoặc bảng size, vui lòng chọn sản phẩm khác ạ!' };
+        response = { type: 'text', content: 'Không tìm thấy sản phẩm hoặc bảng size, vui lòng chọn sản phẩm khác ạ!' };
       }
+      break;
     }
-
     case 'size_chart': {
       const targetProduct = (await searchProduct(PRODUCT_DATABASE, product, category))?.[0];
-      if (targetProduct && targetProduct.size) {
-        return { type: 'text', content: `Bảng size cho sản phẩm ${targetProduct.product}:\n${targetProduct.size.trim()}` };
-      } else {
-        return { type: 'text', content: 'Hiện tại bên em chưa có bảng size cho sản phẩm này.' };
-      }
+      response = targetProduct && targetProduct.size
+        ? { type: 'text', content: `Dạ ${userProfile.first_name} ${userProfile.last_name}, đây là bảng size cho sản phẩm ${targetProduct.product}:\n${targetProduct.size.trim()}` }
+        : { type: 'text', content: 'Hiện tại bên em chưa có bảng size cho sản phẩm này.' };
+      break;
     }
-
     case 'color': {
-      const targetProduct = (await searchProduct(PRODUCT_DATABASE, product, category))?.[0];;
-      if (targetProduct) {
-        const colorText = (targetProduct.color || '').trim();
-        console.log(colorText);
-        return { type: 'text', content: ('Màu bên em đang có đây ạ:' + colorText )  || 'Hiện tại bên em chưa có màu của sản phẩm này, vui lòng liên hệ để biết thêm chi tiết ạ' };
-      } else {
-        return { type: 'text', content: 'Hiện tại bên em chưa có màu của sản phẩm này, vui lòng liên hệ để biết thêm chi tiết ạ' };
-      }
+      const targetProduct = (await searchProduct(PRODUCT_DATABASE, product, category))?.[0];
+      response = targetProduct
+        ? { type: 'text', content: (`Màu bên em đang có đây ạ: ${targetProduct.color.trim()}`) || 'Hiện tại bên em chưa có màu của sản phẩm này, vui lòng liên hệ để biết thêm chi tiết ạ' }
+        : { type: 'text', content: 'Hiện tại bên em chưa có màu của sản phẩm này, vui lòng liên hệ để biết thêm chi tiết ạ' };
+      break;
     }
-
     default: {
-      try {
-        const userProfile = await getUserProfile(senderId);
-        const prompt = `
-    ${SYSTEM_PROMPT} 
-    Danh mục sản phẩm :${PRODUCT_DATABASE}, 
-    Luôn gọi khách hàng bằng tên: ${userProfile.first_name} ${userProfile.last_name}
-    `
-        const messages = [
-          { role: 'system', content: prompt },
-          ...(await getHistory(senderId)).slice(-10)
-        ];
-        const chatResponse = await openai.chat.completions.create({
-          model: 'gpt-4o-mini',
-          messages,
-          max_tokens: 1024
-        });
-        const responseText = chatResponse.choices[0].message.content.trim();
-        return { type: 'text', content: responseText };
-      } catch (err) {
-        console.error('Error in handleIntent default case:', err);
-        return { type: 'text', content: 'Xin lỗi, em không hiểu ý khách. Khách có thể hỏi lại giúp em nhé!' };
-      }
+      const prompt = `
+${SYSTEM_PROMPT} 
+Danh mục sản phẩm: ${PRODUCT_DATABASE}, 
+Luôn gọi khách hàng bằng tên: ${userProfile.first_name} ${userProfile.last_name}
+      `;
+      const messages = [
+        { role: 'system', content: prompt },
+        ...(await getHistory(senderId)).slice(-6)
+      ];
+      const chatResponse = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages,
+        max_tokens: 150
+      });
+      response = { type: 'text', content: chatResponse.choices[0].message.content.trim() };
     }
   }
+
+  // Append GPT-generated proactive prompt for non-order intents
+  if (intent !== 'order_info' && response.type === 'text') {
+    const proactivePrompt = await getGptProactivePrompt(senderId, entities, prevOrder, userProfile, PRODUCT_DATABASE, SYSTEM_PROMPT);
+    if (proactivePrompt) {
+      response.content += `\n${proactivePrompt}`;
+    }
+  }
+
+  return response;
 }
 
 async function analyzeMessage(senderId, message) {
   const SYSTEM_PROMPT = getSystemPrompt();
   const PRODUCT_DATABASE = getProductDatabase();
-
-  const messages = [{ role: 'system', content: SYSTEM_PROMPT }, ...(await getHistory(senderId)).slice(-10)];
+  const messages = [{ role: 'system', content: SYSTEM_PROMPT }, ...(await getHistory(senderId)).slice(-6)];
   const result = PRODUCT_DATABASE;
   const productContext = JSON.stringify(
     [...new Set(result.map(r => r.category))].map(category => ({
@@ -216,7 +236,7 @@ async function analyzeMessage(senderId, message) {
     }))
   );
 
-const prompt = `
+  const prompt = `
 Phân tích tin nhắn người dùng: ${message}
 Lịch sử hội thoại: ${JSON.stringify(messages)}
 Ngữ cảnh sản phẩm: ${productContext}
@@ -247,7 +267,6 @@ Lưu ý:
 - Nếu không xác định được product hoặc category từ tin nhắn hiện tại, hãy lấy giá trị gần nhất từ lịch sử hội thoại (nếu có).
 - Nếu không xác định được, trả về chuỗi rỗng cho các trường đó.
 
-
 Định dạng đầu ra:
 Trả về định dạng JSON:
 {
@@ -268,7 +287,7 @@ Trả về định dạng JSON:
     }
   }
 }
-`;
+  `;
 
   const response = await openai.chat.completions.create({
     model: 'gpt-4o-mini',
@@ -276,15 +295,13 @@ Trả về định dạng JSON:
     response_format: { type: 'json_object' },
   });
 
-  console.log(response.choices[0].message.content)
+  console.log(response.choices[0].message.content);
   return JSON.parse(response.choices[0].message.content);
 }
 
 async function searchProduct(database, product, category) {
   const cat = category.toLowerCase();
   const prod = product.toLowerCase();
-
-  // If both category and product are provided, return the matching item
   return database.filter(item =>
     item.category.toLowerCase() === cat &&
     item.product.toLowerCase() === prod
@@ -292,7 +309,6 @@ async function searchProduct(database, product, category) {
 }
 
 async function saveOrderInfo(senderId, orderInfo) {
-  // Replace with your DB logic
   try {
     await pool.query(
       'INSERT INTO pool.order_info (sender_id, name, address, phone, product_name, color, size, quantity, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())',
