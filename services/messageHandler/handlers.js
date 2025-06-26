@@ -76,11 +76,23 @@ async function handleMessage(event, processedMessages, pendingEvents, MESSAGE_TI
   const imageUrl = extractImageUrl(event);
 
   // Ignore specific quick reply buttons
-  const ignoredQuickReplies = ['LIKE', 'YES', 'NO', 'HELP']; // Add payloads to ignore
+  const ignoredQuickReplies = ['LIKE', 'YES', 'NO', 'HELP']; // Existing quick reply ignore list
   if (isQuickReply && ignoredQuickReplies.includes(messageText)) {
     console.log(`Ignoring quick reply with payload "${messageText}" for sender:`, senderId, 'Message ID:', messageId);
-    updateProcessedMessages(processedMessages, senderId, messageId); // Mark as processed to prevent reprocessing
+    updateProcessedMessages(processedMessages, senderId, messageId);
     return;
+  }
+
+  // Ignore "Like" sticker (and other stickers if needed)
+  const ignoredStickerIds = ['369239263222822']; // Sticker ID for Facebook's "Like" (thumbs-up)
+  if (event.message && event.message.attachments) {
+    for (const attachment of event.message.attachments) {
+      if (attachment.type === 'image' && attachment.payload && ignoredStickerIds.includes(attachment.payload.sticker_id)) {
+        console.log(`Ignoring sticker with sticker_id "${attachment.payload.sticker_id}" for sender:`, senderId, 'Message ID:', messageId);
+        updateProcessedMessages(processedMessages, senderId, messageId);
+        return;
+      }
+    }
   }
 
   // Set or reset lock and timer
