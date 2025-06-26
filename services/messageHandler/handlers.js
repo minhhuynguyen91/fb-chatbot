@@ -159,23 +159,27 @@ async function processPendingEvents(senderId, pendingEvents, extractImageUrl, up
       if (!uploadResp || !uploadResp.secure_url || !uploadResp.public_id) {
         throw new Error('Cloudinary upload failed or returned invalid response: ' + JSON.stringify(uploadResp));
       }
-      console.log('Upload response:', uploadResp);
+      //console.log('Upload response:', uploadResp);
       const secure_url = uploadResp.secure_url;
       const public_id = uploadResp.public_id;
 
       const productList = getProductDatabase();
       console.log('Comparing image with product database using URL:', secure_url);
       const visionResult = await compareAndGetProductDetails(secure_url, productList, senderId);
-      if (!visionResult || visionResult.trim() === '') {
+      if (!visionResult.text || visionResult.text.trim() === '') {
         throw new Error('Vision processing returned no or empty result');
       }
-      console.log('Vision result:', visionResult);
-      let combinedMsg = visionResult;
+      console.log('Vision result:', visionResult.text);
+      let combinedMsg = visionResult.text;
       if (text) {
         combinedMsg = `Dạ, ${text} Em nhận diện được sản phẩm giống với ảnh là:\n${visionResult}`;
       }
       console.log('Sending combined response:', combinedMsg);
       await sendResponse(senderId, { type: 'text', content: combinedMsg });
+      // Send following image when found
+      if (visionResult.imgUrl) {
+        await sendResponse(senderId, { type: 'image', content: visionResult.imgUrl });
+      }
       await storeAssistantMessage(storeMessage, senderId, combinedMsg); // Store combined result
       await deleteFromCloudinary(public_id);
     }
