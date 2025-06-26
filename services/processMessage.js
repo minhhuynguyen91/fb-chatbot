@@ -214,6 +214,7 @@ Luôn gọi khách hàng bằng tên: ${userProfile.first_name} ${userProfile.la
     if (proactivePrompt) {
       response.content += `\n${proactivePrompt}`;
     }
+    console.log(proactivePrompt);
   }
 
   return response;
