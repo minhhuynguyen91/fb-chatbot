@@ -136,6 +136,7 @@ ${product.color || 'Không có thông tin'}
     // Add more details as needed
         response.text = textResp;
         response.imgUrl = product.image_url || '';
+        return response;
     } else {
         return response;
     }
