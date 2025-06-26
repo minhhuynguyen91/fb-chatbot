@@ -63,12 +63,12 @@ Yêu cầu:
 - Tránh lặp lại hoặc gây cảm giác ép buộc.
 
 Định dạng đầu ra:
-Trả về một chuỗi văn bản thuần túy (không JSON, không markdown).
+Trả về một chuỗi văn bản thuần túy (không JSON, không markdown, không nằm trong dấu nháy ' hoặc ").
 
 Ví dụ đầu ra:
-- "${userName} muốn đặt áo sơ mi trắng này không ạ? Chỉ cần cho em thêm địa chỉ và số điện thoại nhé!"
-- "${userName} đã chọn size M, em cần thêm tên và địa chỉ để hoàn tất đơn hàng ạ!"
-- "${userName} muốn em giới thiệu thêm sản phẩm nào để đặt hàng hôm nay không ạ?"
+- ${userName} muốn đặt áo sơ mi trắng này không ạ? Chỉ cần cho em thêm địa chỉ và số điện thoại nhé!
+- ${userName} đã chọn size M, em cần thêm tên và địa chỉ để hoàn tất đơn hàng ạ!
+- ${userName} muốn em giới thiệu thêm sản phẩm nào để đặt hàng hôm nay không ạ?
   `;
 
   try {
@@ -214,7 +214,7 @@ Luôn gọi khách hàng bằng tên: ${userProfile.first_name} ${userProfile.la
     if (proactivePrompt) {
       response.content += `\n${proactivePrompt}`;
     }
-    console.log(proactivePrompt);
+    //console.log(proactivePrompt);
   }
 
   return response;
