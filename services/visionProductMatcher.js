@@ -112,19 +112,18 @@ function findProductDetails({ name, category }, productList) {
  */
 async function compareAndGetProductDetails(customerImageUrl, productList, senderId) {
     const modelResponse = await compareImageWithProducts(customerImageUrl, productList, senderId);
-
+    const response = {text: modelResponse, imgUrl: ''};
     // If not found, return as is
     if (/không tìm thấy/i.test(modelResponse)) {
-        return modelResponse;
+        return response;
     }
 
     const info = extractProductInfo(modelResponse);
-    if (!info) return modelResponse; // Return raw response if extraction fails
+    if (!info) return response; // Return raw response if extraction fails
 
     const product = findProductDetails(info, productList);
     if (product) {
-        // Add more details as needed
-        return `
+        const textResp = `
 ${modelResponse}
 
 Giá sản phẩm: 
@@ -134,8 +133,11 @@ ${product.size || 'Không có thông tin'}
 Các màu hiện có: 
 ${product.color || 'Không có thông tin'}
 `;
+    // Add more details as needed
+        response.text = textResp;
+        response.imgUrl = product.image_url || '';
     } else {
-        return modelResponse;
+        return response;
     }
 }
 
