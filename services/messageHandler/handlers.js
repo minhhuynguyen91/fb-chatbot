@@ -71,17 +71,25 @@ async function handleMessage(event, processedMessages, pendingEvents, MESSAGE_TI
     return;
   }
 
-  // Use senderId as the key for pending events
+  // Extract message details
+  const { messageText, isQuickReply } = extractMessage(event) || { messageText: '', isQuickReply: false };
+  const imageUrl = extractImageUrl(event);
+
+  // Ignore specific quick reply buttons
+  const ignoredQuickReplies = ['LIKE', 'YES', 'NO', 'HELP']; // Add payloads to ignore
+  if (isQuickReply && ignoredQuickReplies.includes(messageText)) {
+    console.log(`Ignoring quick reply with payload "${messageText}" for sender:`, senderId, 'Message ID:', messageId);
+    updateProcessedMessages(processedMessages, senderId, messageId); // Mark as processed to prevent reprocessing
+    return;
+  }
+
+  // Set or reset lock and timer
   let pending = pendingEvents.get(senderId);
   if (!pending) {
     pending = { events: [], lock: false, timer: null, timestamp: Date.now() };
     pendingEvents.set(senderId, pending);
   }
 
-  const { messageText, isQuickReply } = extractMessage(event) || { messageText: '', isQuickReply: false };
-  const imageUrl = extractImageUrl(event);
-
-  // Set or reset lock and timer
   if (!pending.lock) {
     pending.lock = true;
     pending.timer = setTimeout(async () => {
