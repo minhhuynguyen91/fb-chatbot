@@ -178,7 +178,7 @@ async function processPendingEvents(senderId, pendingEvents, extractImageUrl, up
       await sendResponse(senderId, { type: 'text', content: combinedMsg });
       // Send following image when found
       if (visionResult.imgUrl) {
-        await sendResponse(senderId, { type: 'image', content: visionResult.imgUrl });
+        await sendResponse(senderId, { type: 'image', image_url: visionResult.imgUrl });
       }
       await storeAssistantMessage(storeMessage, senderId, combinedMsg); // Store combined result
       await deleteFromCloudinary(public_id);
