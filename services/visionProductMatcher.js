@@ -9,7 +9,6 @@ const getUserProfile = require('./getUserProfile.js');
  */
 function getCleanedProductImages(productList) {
     return productList.flatMap(product => {
-        // Support both 'image_url' and 'url' keys for compatibility
         const rawUrl = product.image_url || product.url || '';
         return rawUrl
             .split(/\s+/)
@@ -29,7 +28,7 @@ function getCleanedProductImages(productList) {
 async function compareImageWithProducts(customerImageUrl, productList, senderId) {
     const SYSTEM_PROMPT = getSystemPrompt();
     const productImages = getCleanedProductImages(productList);
-    const userProfile = await getUserProfile(senderId);
+    const userProfile = await getUserProfile(senderId) || { first_name: 'Khách', last_name: '' }; // Fallback if null
 
     let prompt = `Dưới đây là một ảnh khách gửi (Ảnh khách), tiếp theo là các ảnh sản phẩm được đánh số từ 1 đến ${productImages.length}. 
 Nhiệm vụ của bạn: So sánh Ảnh khách với từng ảnh sản phẩm theo thứ tự. 
@@ -45,7 +44,6 @@ Giọng điệu thân thiện với khách, chỉ trả lời theo định dạn
         prompt += `Ảnh ${idx + 1}: ${p.name} (${p.category})\n`;
     });
 
-    // Build the message array with explicit text before each image
     const content = [
         { type: 'text', text: prompt },
         { type: 'text', text: 'Ảnh khách:' },
@@ -62,13 +60,17 @@ Giọng điệu thân thiện với khách, chỉ trả lời theo định dạn
         { role: 'user', content }
     ];
 
-    const response = await openai.chat.completions.create({
-        model: 'gpt-4.1',
-        messages,
-        max_tokens: 1024
-    });
-
-    return response.choices[0].message.content.trim();
+    try {
+        const response = await openai.chat.completions.create({
+            model: 'gpt-4.1',
+            messages,
+            max_tokens: 1024
+        });
+        return response.choices[0].message.content.trim();
+    } catch (error) {
+        console.error('OpenAI API error for sender:', senderId, error.message);
+        return 'Dạ, em gặp lỗi khi so sánh ảnh. Vui lòng thử lại.';
+    }
 }
 
 /**
@@ -78,14 +80,11 @@ Giọng điệu thân thiện với khách, chỉ trả lời theo định dạn
 function extractProductInfo(modelResponse) {
     let name = '', category = '';
 
-    // Format 1: *name (category)*
     const match1 = modelResponse.match(/\*\s*([^\*]+)\s*\(([^)]+)\)\s*\*/);
     if (match1) {
         name = match1[1].trim();
         category = match1[2].trim();
-    }
-    // Format 2: Tên sản phẩm: name, Danh mục: category
-    else {
+    } else {
         const match2 = modelResponse.match(/Tên sản phẩm:\s*([^\,]+),\s*Danh mục:\s*([^\,]+)/i);
         if (match2) {
             name = match2[1].trim();
@@ -101,9 +100,7 @@ function extractProductInfo(modelResponse) {
  */
 function findProductDetails({ name, category }, productList) {
     return productList.find(
-        p =>
-            (p.name === name || p.product === name) &&
-            p.category === category
+        p => (p.name === name || p.product === name) && p.category === category
     );
 }
 
@@ -112,14 +109,14 @@ function findProductDetails({ name, category }, productList) {
  */
 async function compareAndGetProductDetails(customerImageUrl, productList, senderId) {
     const modelResponse = await compareImageWithProducts(customerImageUrl, productList, senderId);
-    const response = {text: modelResponse, imgUrl: ''};
-    // If not found, return as is
-    if (/không tìm thấy/i.test(modelResponse)) {
+    const response = { text: modelResponse, imgUrl: '' };
+
+    if (/không tìm thấy|gặp lỗi/i.test(modelResponse)) {
         return response;
     }
 
     const info = extractProductInfo(modelResponse);
-    if (!info) return response; // Return raw response if extraction fails
+    if (!info) return response;
 
     const product = findProductDetails(info, productList);
     if (product) {
@@ -133,13 +130,11 @@ ${product.size || 'Không có thông tin'}
 Các màu hiện có: 
 ${product.color || 'Không có thông tin'}
 `;
-    // Add more details as needed
         response.text = textResp;
         response.imgUrl = product.image_url || '';
-        return response;
-    } else {
-        return response;
     }
+
+    return response;
 }
 
 module.exports = { compareAndGetProductDetails };
