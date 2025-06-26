@@ -76,11 +76,15 @@ async function handleMessage(event, processedMessages, pendingEvents, MESSAGE_TI
   if (event.message && event.message.attachments) {
     for (const attachment of event.message.attachments) {
       if (attachment.type === 'image' && attachment.payload && attachment.payload.sticker_id) {
-        console.log(`Detected sticker with sticker_id: "${attachment.payload.sticker_id}" for sender:`, senderId, 'Message ID:', messageId);
-        if (ignoredStickerIds.includes(attachment.payload.sticker_id)) {
-          console.log(`Ignoring sticker with sticker_id "${attachment.payload.sticker_id}" for sender:`, senderId, 'Message ID:', messageId);
-          updateProcessedMessages(processedMessages, senderId, messageId); // Mark as processed to prevent reprocessing
+        const stickerId = String(attachment.payload.sticker_id); // Convert to string
+        console.log(`Detected sticker with sticker_id: "${stickerId}" (type: ${typeof attachment.payload.sticker_id}) for sender:`, senderId, 'Message ID:', messageId);
+        console.log(`Checking if sticker_id "${stickerId}" is in ignoredStickerIds:`, ignoredStickerIds);
+        if (ignoredStickerIds.includes(stickerId)) {
+          console.log(`Ignoring sticker with sticker_id "${stickerId}" for sender:`, senderId, 'Message ID:', messageId);
+          updateProcessedMessages(processedMessages, senderId, messageId); // Mark as processed
           return; // Exit early to prevent any further processing
+        } else {
+          console.log(`Sticker_id "${stickerId}" not in ignoredStickerIds, proceeding with processing`);
         }
       }
     }
@@ -118,7 +122,9 @@ async function handleMessage(event, processedMessages, pendingEvents, MESSAGE_TI
         pendingEvents.delete(senderId);
         console.log('Cleared pending events for sender:', senderId);
       }
-    }, MESSAGE_TIMEOUT);
+    }, MESSAGE_TIMEOUT
+
+);
     console.log('Setting initial lock for sender:', senderId, 'Timer set at:', new Date().toISOString());
   } else if (pending.timer) {
     clearTimeout(pending.timer);
