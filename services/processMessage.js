@@ -193,10 +193,11 @@ Luôn xưng bản thân là em.
       break;
     }
     default: {
+      const userName = userProfile ? `${userProfile.first_name} ${userProfile.last_name}` : 'khách';
       const prompt = `
 ${SYSTEM_PROMPT} 
 Danh mục sản phẩm: ${PRODUCT_DATABASE}, 
-Luôn gọi khách hàng bằng tên: ${userProfile.first_name} ${userProfile.last_name}
+Luôn gọi khách hàng bằng tên: ${userName}
       `;
       const messages = [
         { role: 'system', content: prompt },
