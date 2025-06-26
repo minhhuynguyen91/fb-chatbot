@@ -33,7 +33,7 @@ function mergeOrderInfo(prevOrder, newInfo) {
 }
 
 // Generate GPT-based proactive prompt to encourage ordering
-async function getGptProactivePrompt(senderId, entities, prevOrder, userProfile, PRODUCT_DATABASE, SYSTEM_PROMPT) {
+async function getGptProactivePrompt(senderId, entities, prevOrder, userProfile, PRODUCT_DATABASE, SYSTEM_PROMPT, response) {
   const { product, category } = entities || {};
   const userName = userProfile ? `${userProfile.first_name} ${userProfile.last_name}` : 'khách';
   const history = (await getHistory(senderId)).slice(-10);
@@ -41,23 +41,26 @@ async function getGptProactivePrompt(senderId, entities, prevOrder, userProfile,
     .filter(([_, value]) => value && value.toString().trim() !== '')
     .map(([key, value]) => `${key}: ${value}`)
     .join(', ') : 'không có';
+  const latestResponse = response.type === 'text' ? response.content : 'Không có phản hồi văn bản';
 
   const prompt = `
 ${SYSTEM_PROMPT}
 
-Bạn là trợ lý bán hàng thân thiện và chuyên nghiệp cho một cửa hàng thương mại điện tử, luôn xưng là "em" và gọi khách hàng là theo tên (${userName}). Nhiệm vụ của bạn là tạo một câu gợi ý ngắn gọn, tự nhiên và hấp dẫn để khuyến khích khách hàng đặt hàng hoặc tiếp tục cung cấp thông tin đặt hàng, dựa trên ngữ cảnh hội thoại hiện tại.
+Bạn là trợ lý bán hàng thân thiện và chuyên nghiệp cho một cửa hàng thương mại điện tử, luôn xưng là "em" và gọi khách hàng là theo tên (${userName}). Nhiệm vụ của bạn là tạo một câu gợi ý ngắn gọn, tự nhiên và hấp dẫn để khuyến khích khách hàng đặt hàng hoặc tiếp tục cung cấp thông tin đặt hàng, dựa trên phản hồi gần nhất của em và ngữ cảnh hội thoại hiện tại.
 
 Ngữ cảnh:
 - Danh mục sản phẩm: ${[...new Set(PRODUCT_DATABASE.map(r => r.category))].join(', ')}
 - Sản phẩm hiện tại (nếu được đề cập): ${product || 'không có'}
 - Danh mục hiện tại (nếu được đề cập): ${category || 'không có'}
 - Thông tin đơn hàng tạm thời (nếu có): ${partialOrderFields}
-- Lịch sử hội thoại (6 tin nhắn gần nhất): ${JSON.stringify(history)}
+- Phản hồi gần nhất của em: ${latestResponse}
+- Lịch sử hội thoại (10 tin nhắn gần nhất): ${JSON.stringify(history)}
 
 Yêu cầu:
-- Nếu khách hàng đã cung cấp một phần thông tin đơn hàng, hãy nhẹ nhàng yêu cầu cung cấp các thông tin còn thiếu (ví dụ: tên, địa chỉ, số điện thoại, tên sản phẩm, màu sắc, kích cỡ, số lượng) một cách tự nhiên.
-- Nếu sản phẩm hoặc danh mục được đề cập, hãy gợi ý đặt hàng cho sản phẩm/danh mục đó, đề cập cụ thể nếu có thể.
-- Nếu không có thông tin sản phẩm hoặc đơn hàng, hãy đưa ra gợi ý chung để xem hoặc đặt hàng.
+- Dựa vào phản hồi gần nhất của em, hãy đưa ra gợi ý phù hợp để khuyến khích khách hàng đặt hàng hoặc cung cấp thêm thông tin (ví dụ: tên, địa chỉ, số điện thoại, tên sản phẩm, màu sắc, kích cỡ, số lượng) một cách tự nhiên.
+- Nếu phản hồi là tư vấn size, hãy gợi ý đặt hàng với size đã đề xuất.
+- Nếu phản hồi là bảng size hoặc màu sắc, hãy khuyến khích khách hàng chọn size/màu và tiếp tục đặt hàng.
+- Nếu không có thông tin sản phẩm hoặc đơn hàng rõ ràng, hãy đưa ra gợi ý chung để xem hoặc đặt hàng.
 - Giữ giọng điệu thân thiện, lịch sự, tự nhiên, bằng tiếng Việt.
 - Câu trả lời ngắn gọn (1-2 câu, tối đa 50 token).
 - Tránh lặp lại hoặc gây cảm giác ép buộc.
@@ -66,9 +69,9 @@ Yêu cầu:
 Trả về một chuỗi văn bản thuần túy (không JSON, không markdown, không nằm trong dấu nháy ' hoặc ").
 
 Ví dụ đầu ra:
-- ${userName} muốn đặt áo sơ mi trắng này không ạ? Chỉ cần cho em thêm địa chỉ và số điện thoại nhé!
-- ${userName} đã chọn size M, em cần thêm tên và địa chỉ để hoàn tất đơn hàng ạ!
-- ${userName} muốn em giới thiệu thêm sản phẩm nào để đặt hàng hôm nay không ạ?
+- ${userName} đã được tư vấn size M, em cần thêm địa chỉ và số điện thoại để đặt hàng nhé!
+- ${userName} thấy bảng size này thế nào ạ? Chọn size xong thì cho em biết thêm thông tin đặt hàng nhé!
+- ${userName} muốn đặt hàng sản phẩm nào hôm nay không ạ? Em sẵn sàng hỗ trợ!
   `;
 
   try {
@@ -210,11 +213,10 @@ Luôn gọi khách hàng bằng tên: ${userProfile.first_name} ${userProfile.la
 
   // Append GPT-generated proactive prompt for non-order intents
   if (intent !== 'order_info' && response.type === 'text') {
-    const proactivePrompt = await getGptProactivePrompt(senderId, entities, prevOrder, userProfile, PRODUCT_DATABASE, SYSTEM_PROMPT);
+    const proactivePrompt = await getGptProactivePrompt(senderId, entities, prevOrder, userProfile, PRODUCT_DATABASE, SYSTEM_PROMPT, response);
     if (proactivePrompt) {
       response.content += `\n${proactivePrompt}`;
     }
-    //console.log(proactivePrompt);
   }
 
   return response;
