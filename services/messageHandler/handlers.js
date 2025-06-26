@@ -75,10 +75,13 @@ async function handleMessage(event, processedMessages, pendingEvents, MESSAGE_TI
   const ignoredStickerIds = ['369239263222822']; // Like (thumbs-up) sticker
   if (event.message && event.message.attachments) {
     for (const attachment of event.message.attachments) {
-      if (attachment.type === 'image' && attachment.payload && ignoredStickerIds.includes(attachment.payload.sticker_id)) {
-        console.log(`Ignoring sticker with sticker_id "${attachment.payload.sticker_id}" for sender:`, senderId, 'Message ID:', messageId);
-        updateProcessedMessages(processedMessages, senderId, messageId); // Mark as processed to prevent reprocessing
-        return; // Exit early to prevent any further processing
+      if (attachment.type === 'image' && attachment.payload && attachment.payload.sticker_id) {
+        console.log(`Detected sticker with sticker_id: "${attachment.payload.sticker_id}" for sender:`, senderId, 'Message ID:', messageId);
+        if (ignoredStickerIds.includes(attachment.payload.sticker_id)) {
+          console.log(`Ignoring sticker with sticker_id "${attachment.payload.sticker_id}" for sender:`, senderId, 'Message ID:', messageId);
+          updateProcessedMessages(processedMessages, senderId, messageId); // Mark as processed to prevent reprocessing
+          return; // Exit early to prevent any further processing
+        }
       }
     }
   }
