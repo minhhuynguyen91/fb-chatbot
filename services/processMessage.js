@@ -105,18 +105,68 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
     }
     case 'product_details': {
       const targetProduct = (await searchProduct(PRODUCT_DATABASE, product, category))?.[0];
-      response = targetProduct
-        ? { type: 'text', content: (targetProduct.product_details || '').trim() || 'Hiện tại bên em chưa có thông tin cho sản phẩm này, vui lòng liên hệ để biết thêm chi tiết ạ!' }
-        : { type: 'text', content: 'Hiện tại bên em ko tìm thấy thông tin của sản phẩm này' };
+      if (targetProduct) {
+        // Compose a system prompt with product details
+        const systemPrompt = `
+        ${SYSTEM_PROMPT}
+        Tên sản phẩm: ${targetProduct.product}
+        Danh mục: ${targetProduct.category}
+        Chi tiết: ${(targetProduct.product_details || '').trim() || 'Chưa có thông tin chi tiết.'}
+        Giá: ${(targetProduct.price || '').trim() || 'Chưa có giá.'}
+
+        Nếu khách hỏi về thông tin không có trong chi tiết sản phẩm, hãy trả lời lịch sự rằng hiện tại bên em chưa có thông tin đó và sẽ kiểm tra lại hoặc khách có thể liên hệ để biết thêm chi tiết. Luôn trả lời ngắn gọn, thân thiện, bằng tiếng Việt.
+        `.trim();
+
+        const messages = [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: message }
+        ];
+
+        const chatResponse = await openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages,
+          max_tokens: 200
+        });
+
+        response = { type: 'text', content: chatResponse.choices[0].message.content.trim() };
+      } else {
+        response = { type: 'text', content: 'Hiện tại bên em ko tìm thấy thông tin của sản phẩm này' };
+      }
       break;
     }
+
     case 'price': {
       const targetProduct = (await searchProduct(PRODUCT_DATABASE, product, category))?.[0];
-      response = targetProduct
-        ? { type: 'text', content: (targetProduct.price || '').trim() || 'Hiện tại bên em chưa có giá cho sản phẩm này, vui lòng liên hệ để biết thêm chi tiết ạ!' }
-        : { type: 'text', content: 'Hiện tại bên em ko tìm thấy giá sản phẩm, vui lòng tìm sản phẩm khác ạ' };
+      if (targetProduct) {
+        // Compose a system prompt with product price
+        const systemPrompt = `
+        ${SYSTEM_PROMPT}
+        Tên sản phẩm: ${targetProduct.product}
+        Danh mục: ${targetProduct.category}
+        Giá: ${(targetProduct.price || '').trim() || 'Chưa có giá.'}
+        Chi tiết: ${(targetProduct.product_details || '').trim() || 'Chưa có thông tin chi tiết.'}
+
+        Nếu khách hàng trả giá hoặc hỏi giá thấp hơn, hãy trả lời lịch sự rằng giá đã được niêm yết hoặc đang có chương trình khuyến mãi tốt nhất hiện tại. Khuyến khích khách hàng tận dụng ưu đãi hoặc mua thêm để được giá tốt hơn. Luôn trả lời ngắn gọn, thân thiện, bằng tiếng Việt.
+        `.trim();
+
+        const messages = [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: message }
+        ];
+
+        const chatResponse = await openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages,
+          max_tokens: 100
+        });
+
+        response = { type: 'text', content: chatResponse.choices[0].message.content.trim() };
+      } else {
+        response = { type: 'text', content: 'Hiện tại bên em ko tìm thấy giá sản phẩm, vui lòng tìm sản phẩm khác ạ' };
+      }
       break;
     }
+
     case 'order_info': {
       let newInfo = entities.order_info || {};
       const possibleFields = ['name', 'address', 'phone', 'product_name', 'color', 'size', 'quantity'];
