@@ -22,10 +22,15 @@ async function getHistory(senderId) {
   }
   try {
     const result = await pool.query(
-      'SELECT role, content FROM pool.history WHERE sender_id = $1 ORDER BY timestamp DESC LIMIT 10',
+      'SELECT role, content, image_url, product_info FROM pool.history WHERE sender_id = $1 ORDER BY timestamp DESC LIMIT 10',
       [senderId]
     );
-    return result.rows.map(row => ({ role: row.role, content: row.content })).reverse();
+    return result.rows.map(row => ({
+      role: row.role,
+      content: row.image_url || row.content,
+      is_image: !!row.image_url,
+      product_info: row.product_info || null
+    })).reverse();
   } catch (error) {
     console.error('PostgreSQL Fetch Error:', error);
     return [];
