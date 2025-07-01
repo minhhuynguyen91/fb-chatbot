@@ -13,7 +13,6 @@ const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 // Wrapped POST function with retry + throttling
 async function postWithLimit(url, payload) {
   while (!limit) await delay(10); // Wait until p-limit is loaded
-
   return limit(async () => {
     try {
       const response = await axios.post(url, payload);
@@ -21,14 +20,11 @@ async function postWithLimit(url, payload) {
     } catch (error) {
       const data = error.response?.data || error.message;
       console.error('❌ Facebook API error:', data);
-
-      // Retry logic on rate-limit errors
       if (error.response?.status === 429 || data?.error?.code === 613) {
         console.log('⏳ Rate limit hit. Retrying after 1s...');
         await delay(1000);
         return postWithLimit(url, payload);
       }
-
       throw error;
     }
   });
@@ -42,11 +38,10 @@ function cleanAndSplitLines(str) {
 }
 
 async function sendImagesInBatch(senderId, imageUrls) {
-  imageUrls = cleanAndSplitLines(imageUrls);
-  // console.log(imageUrls);
+  const urls = cleanAndSplitLines(imageUrls);
   try {
-    for (const imageUrl of imageUrls) {
-      await sendImage(senderId, imageUrl); // Uses postWithLimit inside sendImage
+    for (const imageUrl of urls) {
+      await sendImage(senderId, imageUrl);
       await delay(500); // Avoid rate limits
     }
     console.log('All images sent successfully!');
@@ -81,12 +76,10 @@ async function sendResponse(senderId, response) {
   const url = `https://graph.facebook.com/v21.0/me/messages?access_token=${PAGE_ACCESS_TOKEN}`;
   let payload;
 
-  // Batch image sending if image_url is an array
   if (response.type === 'image') {
     await sendMessage(senderId, "Dạ ảnh của bên em đây ạ");
     await sendImagesInBatch(senderId, response.image_url);
     return;
-
   } else if (response.type === 'order') {
     payload = {
       messaging_type: "MESSAGE_TAG",

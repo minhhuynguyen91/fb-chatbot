@@ -8,6 +8,14 @@ const getUserProfile = require('./getUserProfile.js');
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+const sentImageContext = new Map(); // Temporary storage for sent image context
+
+function storeImageContext(senderId, imageUrl, productInfo) {
+  const context = sentImageContext.get(senderId) || [];
+  context.push({ imageUrl, productInfo, timestamp: Date.now() });
+  sentImageContext.set(senderId, context.filter(c => Date.now() - c.timestamp < 5 * 60 * 1000));
+}
+
 async function processMessage(senderId, message) {
   const SYSTEM_PROMPT = getSystemPrompt();
   const PRODUCT_DATABASE = getProductDatabase();
@@ -20,7 +28,6 @@ async function processMessage(senderId, message) {
   }
 }
 
-// Merge only non-empty new fields into previous order
 function mergeOrderInfo(prevOrder, newInfo) {
   const fields = ['name', 'address', 'phone', 'product_name', 'color', 'size', 'quantity'];
   const merged = { ...prevOrder };
@@ -32,7 +39,6 @@ function mergeOrderInfo(prevOrder, newInfo) {
   return merged;
 }
 
-// Generate GPT-based proactive prompt to encourage ordering
 async function getGptProactivePrompt(senderId, entities, prevOrder, userProfile, PRODUCT_DATABASE, SYSTEM_PROMPT, response) {
   const { product, category } = entities || {};
   const userName = userProfile ? `${userProfile.first_name} ${userProfile.last_name}` : 'khách';
@@ -84,7 +90,7 @@ Ví dụ đầu ra:
     return response.choices[0].message.content.trim();
   } catch (error) {
     console.error('Error generating proactive prompt:', error);
-    return ''; // Fallback to no prompt if API fails
+    return '';
   }
 }
 
@@ -97,24 +103,100 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
 
   switch (intent) {
     case 'image': {
-      const image = (await searchProduct(PRODUCT_DATABASE, product, category))?.[0];
-      response = image
-        ? { type: 'image', image_url: image.image_url }
-        : { type: 'text', content: 'Không tìm thấy ảnh, vui lòng chọn sản phẩm khác ạ' };
+      const images = await searchProduct(PRODUCT_DATABASE, product, category, senderId)?.[0];
+      if (images) {
+        response = {
+          type: 'image',
+          image_url: images.image_url
+        };
+
+        urls = images.image_url.split(/\r?\n/).map(line => line.trim()).filter(line => line.length);
+
+        for (const image of urls) {
+          const productInfo = {
+            product: images.product,
+            category: images.category,
+            color: images.color || '',
+            price: images.price || '',
+            image_url: image
+          };
+          storeImageContext(senderId, image.image_url, productInfo);
+          await pool.query(
+            'INSERT INTO pool.history (sender_id, role, content, image_url, product_info, timestamp) VALUES ($1, $2, $3, $4, $5, $6)',
+            [
+              senderId,
+              'assistant',
+              `Sent image of ${image.product}`,
+              image,
+              productInfo,
+              Date.now()
+            ]
+          );
+        }
+      } else {
+        response = { type: 'text', content: 'Không tìm thấy ảnh, vui lòng chọn sản phẩm khác ạ' };
+      }
       break;
     }
     case 'product_details': {
-      const targetProduct = (await searchProduct(PRODUCT_DATABASE, product, category))?.[0];
-      response = targetProduct
-        ? { type: 'text', content: (targetProduct.product_details || '').trim() || 'Hiện tại bên em chưa có thông tin cho sản phẩm này, vui lòng liên hệ để biết thêm chi tiết ạ!' }
-        : { type: 'text', content: 'Hiện tại bên em ko tìm thấy thông tin của sản phẩm này' };
+      const targetProduct = (await searchProduct(PRODUCT_DATABASE, product, category, senderId))?.[0];
+      if (targetProduct) {
+        const systemPrompt = `
+        ${SYSTEM_PROMPT}
+        Tên sản phẩm: ${targetProduct.product}
+        Danh mục: ${targetProduct.category}
+        Chi tiết: ${(targetProduct.product_details || '').trim() || 'Chưa có thông tin chi tiết.'}
+        Giá: ${(targetProduct.price || '').trim() || 'Chưa có giá.'}
+
+        Nếu khách hỏi về thông tin không có trong chi tiết sản phẩm, hãy trả lời lịch sự rằng hiện tại bên em chưa có thông tin đó và sẽ kiểm tra lại hoặc khách có thể liên hệ để biết thêm chi tiết. Luôn trả lời ngắn gọn, thân thiện, bằng tiếng Việt.
+        `.trim();
+
+        const messages = [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: message }
+        ];
+
+        const chatResponse = await openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages,
+          max_tokens: 200
+        });
+
+        response = { type: 'text', content: chatResponse.choices[0].message.content.trim() };
+      } else {
+        response = { type: 'text', content: 'Hiện tại bên em ko tìm thấy thông tin của sản phẩm này' };
+      }
       break;
     }
     case 'price': {
-      const targetProduct = (await searchProduct(PRODUCT_DATABASE, product, category))?.[0];
-      response = targetProduct
-        ? { type: 'text', content: (targetProduct.price || '').trim() || 'Hiện tại bên em chưa có giá cho sản phẩm này, vui lòng liên hệ để biết thêm chi tiết ạ!' }
-        : { type: 'text', content: 'Hiện tại bên em ko tìm thấy giá sản phẩm, vui lòng tìm sản phẩm khác ạ' };
+      const targetProduct = (await searchProduct(PRODUCT_DATABASE, product, category, senderId))?.[0];
+      if (targetProduct) {
+        const systemPrompt = `
+          ${SYSTEM_PROMPT}
+          Tên sản phẩm: ${targetProduct.product}
+          Danh mục: ${targetProduct.category}
+          Giá: ${(targetProduct.price || '').trim() || 'Chưa có giá.'}
+          Giá khách hàng đề xuất: ${entities.bargain_price || 'Không có'}
+          Chi tiết: ${(targetProduct.product_details || '').trim() || 'Chưa có thông tin chi tiết.'}
+
+          Nếu khách hàng trả giá, hãy trả lời lịch sự rằng giá đã được niêm yết hoặc đang có chương trình khuyến mãi tốt nhất hiện tại. Nếu giá đề xuất hợp lý, có thể gợi ý chương trình khuyến mãi (nếu có). Luôn khuyến khích khách hàng đặt hàng và cung cấp thông tin như size, địa chỉ. Giữ giọng điệu thân thiện, tự nhiên, bằng tiếng Việt.
+        `.trim();
+
+        const messages = [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: message }
+        ];
+
+        const chatResponse = await openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages,
+          max_tokens: 100
+        });
+
+        response = { type: 'text', content: chatResponse.choices[0].message.content.trim() };
+      } else {
+        response = { type: 'text', content: 'Hiện tại bên em ko tìm thấy thông tin sản phẩm này, vui lòng chọn sản phẩm khác ạ!' };
+      }
       break;
     }
     case 'order_info': {
@@ -151,7 +233,7 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
     case 'size': {
       const customerWeight = entities.weight || '';
       const customerHeight = entities.height || '';
-      const targetProduct = (await searchProduct(PRODUCT_DATABASE, product, category))?.[0];
+      const targetProduct = (await searchProduct(PRODUCT_DATABASE, product, category, senderId))?.[0];
       if (targetProduct && (customerWeight || customerHeight)) {
         const sizePrompt = `
 Sản phẩm: ${targetProduct.product}
@@ -179,16 +261,16 @@ Luôn xưng bản thân là em.
       break;
     }
     case 'size_chart': {
-      const targetProduct = (await searchProduct(PRODUCT_DATABASE, product, category))?.[0];
+      const targetProduct = (await searchProduct(PRODUCT_DATABASE, product, category, senderId))?.[0];
       response = targetProduct && targetProduct.size
         ? { type: 'text', content: `Dạ ${userProfile.first_name} ${userProfile.last_name}, đây là bảng size cho sản phẩm ${targetProduct.product}:\n${targetProduct.size.trim()}` }
         : { type: 'text', content: 'Hiện tại bên em chưa có bảng size cho sản phẩm này.' };
       break;
     }
     case 'color': {
-      const targetProduct = (await searchProduct(PRODUCT_DATABASE, product, category))?.[0];
+      const targetProduct = (await searchProduct(PRODUCT_DATABASE, product, category, senderId))?.[0];
       response = targetProduct
-        ? { type: 'text', content: (`Màu bên em đang có đây ạ: ${targetProduct.color.trim()}`) || 'Hiện tại bên em chưa có màu của sản phẩm này, vui lòng liên hệ để biết thêm chi tiết ạ' }
+        ? { type: 'text', content: `Màu bên em đang có đây ạ: ${targetProduct.color.trim()}` }
         : { type: 'text', content: 'Hiện tại bên em chưa có màu của sản phẩm này, vui lòng liên hệ để biết thêm chi tiết ạ' };
       break;
     }
@@ -196,7 +278,7 @@ Luôn xưng bản thân là em.
       const userName = userProfile ? `${userProfile.first_name} ${userProfile.last_name}` : 'khách';
       const prompt = `
 ${SYSTEM_PROMPT} 
-Danh mục sản phẩm: ${PRODUCT_DATABASE}, 
+Danh mục sản phẩm: ${[...new Set(PRODUCT_DATABASE.map(r => r.category))].join(', ')},
 Luôn gọi khách hàng bằng tên: ${userName}
       `;
       const messages = [
@@ -212,7 +294,6 @@ Luôn gọi khách hàng bằng tên: ${userName}
     }
   }
 
-  // Append GPT-generated proactive prompt for non-order intents
   if (intent !== 'order_info' && response.type === 'text') {
     const proactivePrompt = await getGptProactivePrompt(senderId, entities, prevOrder, userProfile, PRODUCT_DATABASE, SYSTEM_PROMPT, response);
     if (proactivePrompt) {
@@ -236,6 +317,7 @@ async function analyzeMessage(senderId, message) {
         .map(p => ({
           product: p.product,
           synonyms: p.synonyms,
+          color: p.color || ''
         })),
     }))
   );
@@ -244,35 +326,35 @@ async function analyzeMessage(senderId, message) {
 Phân tích tin nhắn người dùng: ${message}
 Lịch sử hội thoại: ${JSON.stringify(messages)}
 Ngữ cảnh sản phẩm: ${productContext}
+Hình ảnh đã gửi gần đây: ${JSON.stringify(sentImageContext.get(senderId) || [])}
 
 Yêu cầu:
+- Nếu người dùng đề cập đến sản phẩm như "Đầm màu xanh" và có hình ảnh sản phẩm trong lịch sử (is_image: true với product_info) hoặc sentImageContext, hãy sử dụng product_info để xác định product/category/color.
 - Xác định ý định của người dùng (intent):
-  "image" : nếu người dùng muốn xem hình ảnh
-  "product_details" : nếu người dùng muốn biết thông số hoặc chi tiết sản phẩm
-  "price" : nếu người dùng muốn biết giá sản phẩm
-  "size_chart" : nếu người dùng chỉ muốn biết các size có sẵn của sản phẩm
-  "size" : nếu người dùng cần tư vấn size dựa trên cân nặng/chiều cao
-  "color" : nếu người dùng cần biết màu sắc sản phẩm
-  "order_info" : nếu người dùng cung cấp thông tin đặt hàng (ví dụ: tên, địa chỉ, số điện thoại, tên sản phẩm, màu sắc, kích cỡ, số lượng)
-  "general" : cho các câu hỏi khác
-
+  "image": nếu người dùng muốn xem hình ảnh
+  "product_details": nếu người dùng muốn biết thông số hoặc chi tiết sản phẩm
+  "price": nếu người dùng muốn biết giá sản phẩm hoặc trả giá
+  "size_chart": nếu người dùng chỉ muốn biết các size có sẵn của sản phẩm (ví dụ: "Có size nào?", "Shop có size gì?")
+  "size": nếu người dùng cần tư vấn size dựa trên cân nặng/chiều cao
+  "color": nếu người dùng cần biết màu sắc sản phẩm
+  "order_info": nếu người dùng cung cấp thông tin đặt hàng
+  "general": cho các câu hỏi khác
 - Trích xuất thực thể (entities):
   product: sản phẩm cụ thể được đề cập (nếu có)
   category: danh mục sản phẩm được đề cập (nếu có)
+  weight: cân nặng (nếu có)
+  height: chiều cao (nếu có)
+  bargain_price: giá khách hàng đề xuất (nếu có, ví dụ: "150k")
   order_info: object chứa các trường như name, address, phone, product_name, color, size, quantity nếu người dùng cung cấp
+- Lưu ý:
+  - Nếu ý định là "order_info", trích xuất tất cả thông tin đặt hàng mà người dùng cung cấp. Nếu người dùng chỉ cung cấp một phần thông tin, kết hợp với thông tin từ lịch sử hội thoại (product_info hoặc tin nhắn trước) để hoàn thiện đơn hàng. Nếu chỉ cung cấp một trường, trả về order_info với trường đó và các trường còn lại là chuỗi rỗng.
+  - Nếu ý định là "product_details", "price", "size", hoặc "color", luôn cố gắng xác định product và category từ tin nhắn hiện tại hoặc lịch sử hội thoại gần nhất (sử dụng product_info từ lịch sử hoặc sentImageContext). Nếu người dùng dùng đại từ như "nó", "sản phẩm đó", lấy product/category từ product_info của tin nhắn trước đó trong lịch sử.
+  - Nếu người dùng chỉ hỏi về các size có sẵn (ví dụ: "Có size nào?", "Shop có size gì?"), đặt intent là "size_chart" và KHÔNG trích xuất weight/height.
+  - Nếu người dùng hỏi tư vấn size dựa trên cân nặng/chiều cao, đặt intent là "size" và trích xuất weight/height nếu có.
+  - Nếu không xác định được product hoặc category từ tin nhắn hiện tại, lấy giá trị gần nhất từ product_info trong lịch sử hội thoại hoặc sentImageContext (nếu có).
+  - Nếu không xác định được, trả về chuỗi rỗng cho các trường đó.
 
-Lưu ý:
-- Nếu ý định là "order_info", hãy trích xuất tất cả thông tin đặt hàng mà người dùng cung cấp.
-- Nếu người dùng chỉ cung cấp một phần thông tin, hãy kết hợp với thông tin đã có trong lịch sử hội thoại để hoàn thiện đơn hàng.
-- Nếu người dùng chỉ cung cấp một trường thông tin, hãy trả về order_info với trường đó và các trường còn lại là chuỗi rỗng.
-- Nếu ý định là "product_details", "price", "size", hoặc "color", luôn cố gắng xác định product và category từ tin nhắn hiện tại hoặc lịch sử hội thoại gần nhất. Nếu user dùng đại từ như "nó", "sản phẩm đó", hãy lấy product/category từ câu trước đó trong lịch sử.
-- Nếu người dùng chỉ hỏi về các size có sẵn (ví dụ: "Có size nào?", "Shop có size gì?"), đặt intent là "size_chart" và KHÔNG trích xuất weight/height.
-- Nếu người dùng hỏi tư vấn size dựa trên cân nặng/chiều cao, đặt intent là "size" và trích xuất weight/height nếu có.
-- Nếu không xác định được product hoặc category từ tin nhắn hiện tại, hãy lấy giá trị gần nhất từ lịch sử hội thoại (nếu có).
-- Nếu không xác định được, trả về chuỗi rỗng cho các trường đó.
-
-Định dạng đầu ra:
-Trả về định dạng JSON:
+Định dạng đầu ra (JSON):
 {
   "intent": "...",
   "entities": {
@@ -280,6 +362,7 @@ Trả về định dạng JSON:
     "category": "...",
     "weight": "...",
     "height": "...",
+    "bargain_price": "...",
     "order_info": {
       "name": "...",
       "address": "...",
@@ -299,17 +382,45 @@ Trả về định dạng JSON:
     response_format: { type: 'json_object' },
   });
 
-  console.log(response.choices[0].message.content);
+  console.log('analyzeMessage output:', response.choices[0].message.content);
   return JSON.parse(response.choices[0].message.content);
 }
 
-async function searchProduct(database, product, category) {
-  const cat = category.toLowerCase();
-  const prod = product.toLowerCase();
-  return database.filter(item =>
-    item.category.toLowerCase() === cat &&
-    item.product.toLowerCase() === prod
-  );
+async function searchProduct(database, product, category, senderId) {
+  console.log('searchProduct inputs:', { product, category, senderId });
+  let results = database.filter(item => {
+    const itemCategory = item.category.toLowerCase().trim();
+    const itemProduct = item.product.toLowerCase().trim();
+    const itemColor = item.color ? item.color.toLowerCase().trim() : '';
+    const itemSynonyms = item.synonyms ? item.synonyms.map(s => s.toLowerCase().trim()) : [];
+    const cat = category ? category.toLowerCase().trim() : '';
+    const prod = product ? product.toLowerCase().trim() : '';
+
+    const categoryMatch = !cat || itemCategory.includes(cat) || cat.includes(itemCategory);
+    const productMatch = !prod || 
+      itemProduct.includes(prod) || 
+      prod.includes(itemProduct) || 
+      itemSynonyms.some(synonym => synonym.includes(prod) || prod.includes(synonym)) ||
+      (itemColor && prod.includes(itemColor));
+
+    console.log('Checking item:', { itemProduct, itemCategory, itemColor, productMatch, categoryMatch });
+    return categoryMatch && productMatch;
+  });
+
+  console.log('searchProduct results:', results);
+  if (results.length === 0 && senderId) {
+    console.log('Falling back to image context:', sentImageContext.get(senderId));
+    const context = sentImageContext.get(senderId) || [];
+    results = context
+      .filter(c => 
+        (c.productInfo.product && c.productInfo.product.toLowerCase().includes(product?.toLowerCase() || '')) ||
+        (c.productInfo.color && (c.productInfo.color.toLowerCase() === prod || prod.includes(c.productInfo.color.toLowerCase())))
+      )
+      .map(c => c.productInfo);
+  }
+
+  console.log('Final searchProduct results:', results);
+  return results;
 }
 
 async function saveOrderInfo(senderId, orderInfo) {
@@ -332,4 +443,4 @@ async function saveOrderInfo(senderId, orderInfo) {
   }
 }
 
-module.exports = { processMessage };
+module.exports = { processMessage, storeImageContext };
