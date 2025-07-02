@@ -1,4 +1,7 @@
 const axios = require('axios');
+const pool = require('../db/pool.js');
+const { storeImageContext } = require('./processMessage');
+const { getProductDatabase } = require('../db/productInfo.js');
 
 const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
 
@@ -38,10 +41,40 @@ function cleanAndSplitLines(str) {
 }
 
 async function sendImagesInBatch(senderId, imageUrls) {
+  const PRODUCT_DATABASE = getProductDatabase();
   const urls = cleanAndSplitLines(imageUrls);
   try {
     for (const imageUrl of urls) {
       await sendImage(senderId, imageUrl);
+      // Find product by image_url
+      const product = PRODUCT_DATABASE.find(p => p.image_url === imageUrl) || {
+        product: 'Unknown',
+        category: 'Unknown',
+        color: '',
+        price: '',
+        image_url: imageUrl
+      };
+      const productInfo = {
+        product: product.product,
+        category: product.category,
+        color: product.color || '',
+        price: product.price || '',
+        image_url: imageUrl
+      };
+      // Store in image context
+      storeImageContext(senderId, imageUrl, productInfo);
+      // Save to history
+      await pool.query(
+        'INSERT INTO pool.history (sender_id, role, content, image_url, product_info, timestamp) VALUES ($1, $2, $3, $4, $5, $6)',
+        [
+          senderId,
+          'assistant',
+          `Sent image of ${productInfo.product}`,
+          imageUrl,
+          productInfo,
+          Date.now()
+        ]
+      );
       await delay(500); // Avoid rate limits
     }
     console.log('All images sent successfully!');
