@@ -42,7 +42,7 @@ function cleanAndSplitLines(str) {
 
 async function sendImagesInBatch(senderId, imageUrls) {
   const PRODUCT_DATABASE = getProductDatabase();
-  const urls = cleanAndSplitLines(imageUrls);
+  const urls = typeof imageUrls === 'string' ? cleanAndSplitLines(imageUrls) : Array.isArray(imageUrls) ? imageUrls : [imageUrls];
   try {
     for (const imageUrl of urls) {
       await sendImage(senderId, imageUrl);
