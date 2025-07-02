@@ -103,36 +103,12 @@ async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT)
 
   switch (intent) {
     case 'image': {
-      const images = await searchProduct(PRODUCT_DATABASE, product, category, senderId)?.[0];
-      if (images) {
+      const images = await searchProduct(PRODUCT_DATABASE, product, category, senderId);
+      if (images.length > 0) {
         response = {
           type: 'image',
-          image_url: images.image_url
+          image_url: images.map(image => image.image_url).join('\n')
         };
-
-        urls = images.image_url.split(/\r?\n/).map(line => line.trim()).filter(line => line.length);
-
-        for (const image of urls) {
-          const productInfo = {
-            product: images.product,
-            category: images.category,
-            color: images.color || '',
-            price: images.price || '',
-            image_url: image
-          };
-          storeImageContext(senderId, image.image_url, productInfo);
-          await pool.query(
-            'INSERT INTO pool.history (sender_id, role, content, image_url, product_info, timestamp) VALUES ($1, $2, $3, $4, $5, $6)',
-            [
-              senderId,
-              'assistant',
-              `Sent image of ${image.product}`,
-              image,
-              productInfo,
-              Date.now()
-            ]
-          );
-        }
       } else {
         response = { type: 'text', content: 'Không tìm thấy ảnh, vui lòng chọn sản phẩm khác ạ' };
       }
