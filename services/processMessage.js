@@ -244,10 +244,18 @@ Luôn xưng bản thân là em.
       break;
     }
     case 'color': {
-      const targetProduct = (await searchProduct(PRODUCT_DATABASE, product, category, senderId))?.[0];
-      response = targetProduct
-        ? { type: 'text', content: `Màu bên em đang có đây ạ: ${targetProduct.color.trim()}` }
-        : { type: 'text', content: 'Hiện tại bên em chưa có màu của sản phẩm này, vui lòng liên hệ để biết thêm chi tiết ạ' };
+      const targetColor = entities.color || '';
+      const products = await searchProduct(PRODUCT_DATABASE, product, category, senderId, targetColor);
+      if (products.length > 0) {
+        const productNames = products.map(p => p.product).join(', ');
+        const userName = userProfile ? `${userProfile.first_name} ${userProfile.last_name}` : 'khách';
+        response = {
+          type: 'text',
+          content: `Dạ ${userName} ơi, bên em có các đầm màu ${targetColor} sau đây nè: ${productNames}. Mình muốn xem chi tiết mẫu nào ạ? 💖`
+        };
+      } else {
+        response = { type: 'text', content: `Hiện tại bên em chưa có đầm màu ${targetColor}, vui lòng liên hệ để biết thêm chi tiết ạ!` };
+      }
       break;
     }
     default: {
@@ -362,8 +370,8 @@ Yêu cầu:
   return JSON.parse(response.choices[0].message.content);
 }
 
-async function searchProduct(database, product, category, senderId) {
-  console.log('searchProduct inputs:', { product, category, senderId });
+async function searchProduct(database, product, category, senderId, color = '') {
+  console.log('searchProduct inputs:', { product, category, senderId, color });
   let results = database.filter(item => {
     const itemCategory = item.category ? item.category.toLowerCase().trim() : '';
     const itemProduct = item.product ? item.product.toLowerCase().trim() : '';
@@ -372,6 +380,7 @@ async function searchProduct(database, product, category, senderId) {
                          typeof item.synonyms === 'string' ? [item.synonyms.toLowerCase().trim()] : [];
     const cat = category ? category.toLowerCase().trim() : '';
     const prod = product ? product.toLowerCase().trim() : '';
+    const col = color ? color.toLowerCase().trim() : '';
 
     const categoryMatch = !cat || itemCategory.includes(cat) || cat.includes(itemCategory);
     const productMatch = !prod || 
@@ -379,9 +388,10 @@ async function searchProduct(database, product, category, senderId) {
       prod.includes(itemProduct) || 
       itemSynonyms.some(synonym => synonym.includes(prod) || prod.includes(synonym)) ||
       (itemColor && prod.includes(itemColor));
+    const colorMatch = !col || itemColor.includes(col);
 
-    console.log('Checking item:', { itemProduct, itemCategory, itemColor, productMatch, categoryMatch });
-    return categoryMatch && productMatch;
+    console.log('Checking item:', { itemProduct, itemCategory, itemColor, productMatch, categoryMatch, colorMatch });
+    return categoryMatch && productMatch && colorMatch;
   });
 
   console.log('searchProduct results:', results);
@@ -391,7 +401,8 @@ async function searchProduct(database, product, category, senderId) {
     results = context
       .filter(c => 
         (c.productInfo.product && c.productInfo.product.toLowerCase().includes(product?.toLowerCase() || '')) ||
-        (c.productInfo.color && c.productInfo.color.toLowerCase().includes(product?.toLowerCase() || ''))
+        (c.productInfo.color && c.productInfo.color.toLowerCase().includes(product?.toLowerCase() || '')) ||
+        (color && c.productInfo.color && c.productInfo.color.toLowerCase().includes(color.toLowerCase()))
       )
       .map(c => c.productInfo);
   }
