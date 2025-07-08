@@ -21,7 +21,7 @@ async function processMessage(senderId, message) {
   const PRODUCT_DATABASE = getProductDatabase();
   try {
     const analysis = await analyzeMessage(senderId, message);
-    return await handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT);
+    return await handleIntent(analysis, message, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT);
   } catch (error) {
     console.error('Error processing message:', error);
     return { type: 'text', content: 'Sorry, something went wrong!' };
@@ -94,7 +94,7 @@ Ví dụ đầu ra:
   }
 }
 
-async function handleIntent(analysis, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT) {
+async function handleIntent(analysis, message, senderId, PRODUCT_DATABASE, SYSTEM_PROMPT) {
   const { intent, entities } = analysis;
   const { product, category } = entities || {};
   const userProfile = await getUserProfile(senderId);
