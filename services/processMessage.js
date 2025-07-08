@@ -64,8 +64,8 @@ Ngữ cảnh:
 - Lịch sử hội thoại (10 tin nhắn gần nhất): ${JSON.stringify(history)}
 
 Yêu cầu:
-- Tạo một gợi ý ngắn gọn (1-2 câu, tối đa 50 token) để khuyến khích khách hàng chọn sản phẩm cụ thể hoặc cung cấp thông tin đặt hàng (ví dụ: màu sắc, size, tên, địa chỉ, số điện thoại).
-- Nếu phản hồi gần nhất đã liệt kê danh sách sản phẩm (ví dụ: danh sách đầm màu đen), KHÔNG lặp lại danh sách này. Thay vào đó, gợi ý khách hàng chọn một sản phẩm cụ thể từ danh sách hoặc cung cấp thông tin đặt hàng.
+- Tạo một gợi ý ngắn gọn (1-2 câu, tối đa 50 token) để khuyến khích khách hàng chọn sản phẩm cụ thể, màu sắc, size hoặc cung cấp thông tin đặt hàng (ví dụ: tên, địa chỉ, số điện thoại).
+- Nếu phản hồi gần nhất đã liệt kê danh sách sản phẩm hoặc màu sắc, KHÔNG lặp lại danh sách này. Thay vào đó, gợi ý khách hàng chọn một sản phẩm cụ thể, màu sắc hoặc cung cấp thông tin đặt hàng.
 - Nếu phản hồi là tư vấn size, gợi ý đặt hàng với size đã đề xuất.
 - Nếu phản hồi là bảng size hoặc màu sắc, khuyến khích khách hàng chọn size/màu và tiếp tục đặt hàng.
 - Nếu không có thông tin sản phẩm hoặc đơn hàng rõ ràng, đưa ra gợi ý chung để xem hoặc đặt hàng.
@@ -244,21 +244,49 @@ Luôn xưng bản thân là em.
         : { type: 'text', content: 'Hiện tại bên em chưa có bảng size cho sản phẩm này.' };
       break;
     }
-    case 'color': {
-      const targetColor = entities.color || '';
-      const products = await searchProduct(PRODUCT_DATABASE, product, category, senderId, targetColor);
+  case 'color': {
+    const targetColor = entities.color || '';
+    const targetProduct = entities.product || '';
+    const userName = userProfile ? `${userProfile.first_name} ${userProfile.last_name}` : 'khách';
+    
+    if (targetProduct && !targetColor) {
+      // Case: Asking for colors of a specific product (e.g., "Đầm Maxi có màu nào?")
+      const product = await searchProduct(PRODUCT_DATABASE, targetProduct, category, senderId);
+      if (product.length > 0) {
+        const colors = product[0].color
+          .split('\n')
+          .map(c => c.trim())
+          .filter(c => c)
+          .map(c => c.replace(/^\d+\.\s*/, '')) // Remove numbering like "1. "
+          .join(', ');
+        response = {
+          type: 'text',
+          content: `Dạ ${userName} ơi, đầm ${targetProduct} hiện có các màu: ${colors}. Mình muốn chọn màu nào ạ? 💖`
+        };
+      } else {
+        response = {
+          type: 'text',
+          content: `Hiện tại bên em chưa có thông tin về đầm ${targetProduct}, vui lòng liên hệ để biết thêm chi tiết ạ!`
+        };
+      }
+    } else {
+      // Case: Asking for products of a specific color (e.g., "còn đầm nào màu đen nữa ko?")
+      const products = await searchProduct(PRODUCT_DATABASE, targetProduct, category, senderId, targetColor);
       if (products.length > 0) {
         const productNames = products.map(p => p.product).join(', ');
-        const userName = userProfile ? `${userProfile.first_name} ${userProfile.last_name}` : 'khách';
         response = {
           type: 'text',
           content: `Dạ ${userName} ơi, bên em có các đầm màu ${targetColor} sau đây nè: ${productNames}. Mình muốn xem chi tiết mẫu nào ạ? 💖`
         };
       } else {
-        response = { type: 'text', content: `Hiện tại bên em chưa có đầm màu ${targetColor}, vui lòng liên hệ để biết thêm chi tiết ạ!` };
+        response = {
+          type: 'text',
+          content: `Hiện tại bên em chưa có đầm màu ${targetColor}, vui lòng liên hệ để biết thêm chi tiết ạ!`
+        };
       }
-      break;
     }
+    break;
+  }
     default: {
       const userName = userProfile ? `${userProfile.first_name} ${userProfile.last_name}` : 'khách';
       const prompt = `
@@ -307,21 +335,21 @@ async function analyzeMessage(senderId, message) {
     }))
   );
 
-  const prompt = `
+const prompt = `
 Phân tích tin nhắn người dùng: ${message}
 Lịch sử hội thoại: ${JSON.stringify(messages)}
 Ngữ cảnh sản phẩm: ${productContext}
 Hình ảnh đã gửi gần đây: ${JSON.stringify(sentImageContext.get(senderId) || [])}
 
 Yêu cầu:
-- Nếu người dùng đề cập đến sản phẩm như "Đầm màu xanh" hoặc hỏi về màu sắc (ví dụ: "có màu nào?", "còn đầm nào màu đen nữa ko?") và có hình ảnh sản phẩm trong lịch sử (is_image: true với product_info) hoặc sentImageContext, hãy sử dụng product_info để xác định product/category/color.
+- Nếu người dùng đề cập đến sản phẩm cụ thể như "Đầm Maxi có màu nào?" hoặc hỏi về màu sắc (ví dụ: "còn đầm nào màu đen nữa ko?") và có hình ảnh sản phẩm trong lịch sử (is_image: true với product_info) hoặc sentImageContext, hãy sử dụng product_info để xác định product/category/color.
 - Xác định ý định của người dùng (intent):
   "image": nếu người dùng muốn xem hình ảnh (ví dụ: "cho xem ảnh", "gửi hình")
   "product_details": nếu người dùng muốn biết thông số hoặc chi tiết sản phẩm (ví dụ: "đầm maxi thế nào?")
   "price": nếu người dùng muốn biết giá sản phẩm hoặc trả giá (ví dụ: "giá bao nhiêu?", "150k bán ko?")
   "size_chart": nếu người dùng chỉ muốn biết các size có sẵn của sản phẩm (ví dụ: "Có size nào?", "Shop có size gì?")
   "size": nếu người dùng cần tư vấn size dựa trên cân nặng/chiều cao (ví dụ: "tôi 50kg thì mặc size nào?")
-  "color": nếu người dùng hỏi về màu sắc sản phẩm hoặc yêu cầu danh sách sản phẩm theo màu (ví dụ: "có màu nào?", "còn đầm nào màu đen nữa ko?")
+  "color": nếu người dùng hỏi về màu sắc sản phẩm hoặc yêu cầu danh sách sản phẩm theo màu (ví dụ: "Đầm Maxi có màu nào?", "còn đầm nào màu đen nữa ko?")
   "order_info": nếu người dùng cung cấp thông tin đặt hàng (ví dụ: "tôi muốn đặt đầm maxi màu đen size M")
   "general": cho các câu hỏi khác không thuộc các trường hợp trên
 - Trích xuất thực thể (entities):
@@ -332,6 +360,7 @@ Yêu cầu:
   bargain_price: giá khách hàng đề xuất (nếu có, ví dụ: "150k")
   order_info: object chứa các trường như name, address, phone, product_name, color, size, quantity nếu người dùng cung cấp
 - Lưu ý:
+  - Nếu ý định là "color" và người dùng hỏi về màu sắc của sản phẩm cụ thể (ví dụ: "Đầm Maxi có màu nào?"), đặt product là sản phẩm được đề cập (ví dụ: "Đầm Maxi"), category là danh mục liên quan (ví dụ: "Áo Quần"), và để color là chuỗi rỗng ("").
   - Nếu ý định là "color" và người dùng hỏi về sản phẩm theo màu (ví dụ: "còn đầm nào màu đen nữa ko?"), đặt product là chuỗi rỗng (""), category là danh mục liên quan (nếu có, ví dụ: "Áo Quần"), và color là màu được đề cập (ví dụ: "đen").
   - Nếu ý định là "order_info", trích xuất tất cả thông tin đặt hàng mà người dùng cung cấp. Nếu người dùng chỉ cung cấp một phần thông tin, kết hợp với thông tin từ lịch sử hội thoại (product_info hoặc tin nhắn trước) để hoàn thiện đơn hàng.
   - Nếu ý định là "product_details", "price", "size", hoặc "color", luôn cố gắng xác định product và category từ tin nhắn hiện tại hoặc lịch sử hội thoại gần nhất (sử dụng product_info từ lịch sử hoặc sentImageContext). Nếu người dùng dùng đại từ như "nó", "sản phẩm đó", lấy product/category từ product_info của tin nhắn trước đó trong lịch sử.
@@ -384,9 +413,8 @@ async function searchProduct(database, product, category, senderId, color = '') 
 
     const categoryMatch = !cat || itemCategory.includes(cat) || cat.includes(itemCategory);
     const productMatch = !prod || 
-      itemProduct.includes(prod) || 
-      prod.includes(itemProduct) || 
-      itemSynonyms.some(synonym => synonym.includes(prod) || prod.includes(synonym)) ||
+      itemProduct === prod || // Exact match for product
+      itemSynonyms.some(synonym => synonym === prod) ||
       (itemColor && prod.includes(itemColor));
     const colorMatch = !col || itemColor.includes(col);
 
