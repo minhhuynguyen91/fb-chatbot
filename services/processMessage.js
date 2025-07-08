@@ -40,7 +40,7 @@ function mergeOrderInfo(prevOrder, newInfo) {
 }
 
 async function getGptProactivePrompt(senderId, entities, prevOrder, userProfile, PRODUCT_DATABASE, SYSTEM_PROMPT, response) {
-  const { product, category } = entities || {};
+  const { product, category, color } = entities || {};
   const userName = userProfile ? `${userProfile.first_name} ${userProfile.last_name}` : 'khách';
   const history = (await getHistory(senderId)).slice(-10);
   const partialOrderFields = prevOrder ? Object.entries(prevOrder)
@@ -58,26 +58,27 @@ Ngữ cảnh:
 - Danh mục sản phẩm: ${[...new Set(PRODUCT_DATABASE.map(r => r.category))].join(', ')}
 - Sản phẩm hiện tại (nếu được đề cập): ${product || 'không có'}
 - Danh mục hiện tại (nếu được đề cập): ${category || 'không có'}
+- Màu sắc (nếu được đề cập): ${color || 'không có'}
 - Thông tin đơn hàng tạm thời (nếu có): ${partialOrderFields}
 - Phản hồi gần nhất của em: ${latestResponse}
 - Lịch sử hội thoại (10 tin nhắn gần nhất): ${JSON.stringify(history)}
 
 Yêu cầu:
-- Dựa vào phản hồi gần nhất của em, hãy đưa ra gợi ý phù hợp để khuyến khích khách hàng đặt hàng hoặc cung cấp thêm thông tin (ví dụ: tên, địa chỉ, số điện thoại, tên sản phẩm, màu sắc, kích cỡ, số lượng) một cách tự nhiên.
-- Nếu phản hồi là tư vấn size, hãy gợi ý đặt hàng với size đã đề xuất.
-- Nếu phản hồi là bảng size hoặc màu sắc, hãy khuyến khích khách hàng chọn size/màu và tiếp tục đặt hàng.
-- Nếu không có thông tin sản phẩm hoặc đơn hàng rõ ràng, hãy đưa ra gợi ý chung để xem hoặc đặt hàng.
+- Tạo một gợi ý ngắn gọn (1-2 câu, tối đa 50 token) để khuyến khích khách hàng chọn sản phẩm cụ thể hoặc cung cấp thông tin đặt hàng (ví dụ: màu sắc, size, tên, địa chỉ, số điện thoại).
+- Nếu phản hồi gần nhất đã liệt kê danh sách sản phẩm (ví dụ: danh sách đầm màu đen), KHÔNG lặp lại danh sách này. Thay vào đó, gợi ý khách hàng chọn một sản phẩm cụ thể từ danh sách hoặc cung cấp thông tin đặt hàng.
+- Nếu phản hồi là tư vấn size, gợi ý đặt hàng với size đã đề xuất.
+- Nếu phản hồi là bảng size hoặc màu sắc, khuyến khích khách hàng chọn size/màu và tiếp tục đặt hàng.
+- Nếu không có thông tin sản phẩm hoặc đơn hàng rõ ràng, đưa ra gợi ý chung để xem hoặc đặt hàng.
 - Giữ giọng điệu thân thiện, lịch sự, tự nhiên, bằng tiếng Việt.
-- Câu trả lời ngắn gọn (1-2 câu, tối đa 50 token).
-- Tránh lặp lại hoặc gây cảm giác ép buộc.
+- Tránh lặp lại nội dung của phản hồi gần nhất hoặc gây cảm giác ép buộc.
 
 Định dạng đầu ra:
 Trả về một chuỗi văn bản thuần túy (không JSON, không markdown, không nằm trong dấu nháy ' hoặc ").
 
 Ví dụ đầu ra:
-- ${userName} đã được tư vấn size M, em cần thêm địa chỉ và số điện thoại để đặt hàng nhé!
-- ${userName} thấy bảng size này thế nào ạ? Chọn size xong thì cho em biết thêm thông tin đặt hàng nhé!
-- ${userName} muốn đặt hàng sản phẩm nào hôm nay không ạ? Em sẵn sàng hỗ trợ!
+- ${userName} thấy mẫu đầm nào ưng ý chưa ạ? Chọn mẫu và size để em giữ đơn nhé! 💖
+- ${userName} đã chọn được màu và size nào chưa ạ? Cho em xin thông tin đặt hàng nhé! 💕
+- ${userName} muốn đặt hàng sản phẩm nào hôm nay không ạ? Em sẵn sàng hỗ trợ! 😊
   `;
 
   try {
@@ -313,28 +314,27 @@ Ngữ cảnh sản phẩm: ${productContext}
 Hình ảnh đã gửi gần đây: ${JSON.stringify(sentImageContext.get(senderId) || [])}
 
 Yêu cầu:
-- Nếu người dùng đề cập đến sản phẩm như "Đầm màu xanh" và có hình ảnh sản phẩm trong lịch sử (is_image: true với product_info) hoặc sentImageContext, hãy sử dụng product_info để xác định product/category/color.
+- Nếu người dùng đề cập đến sản phẩm như "Đầm màu xanh" hoặc hỏi về màu sắc (ví dụ: "có màu nào?", "còn đầm nào màu đen nữa ko?") và có hình ảnh sản phẩm trong lịch sử (is_image: true với product_info) hoặc sentImageContext, hãy sử dụng product_info để xác định product/category/color.
 - Xác định ý định của người dùng (intent):
-  "image": nếu người dùng muốn xem hình ảnh
-  "product_details": nếu người dùng muốn biết thông số hoặc chi tiết sản phẩm
-  "price": nếu người dùng muốn biết giá sản phẩm hoặc trả giá
+  "image": nếu người dùng muốn xem hình ảnh (ví dụ: "cho xem ảnh", "gửi hình")
+  "product_details": nếu người dùng muốn biết thông số hoặc chi tiết sản phẩm (ví dụ: "đầm maxi thế nào?")
+  "price": nếu người dùng muốn biết giá sản phẩm hoặc trả giá (ví dụ: "giá bao nhiêu?", "150k bán ko?")
   "size_chart": nếu người dùng chỉ muốn biết các size có sẵn của sản phẩm (ví dụ: "Có size nào?", "Shop có size gì?")
-  "size": nếu người dùng cần tư vấn size dựa trên cân nặng/chiều cao
-  "color": nếu người dùng cần biết màu sắc sản phẩm
-  "order_info": nếu người dùng cung cấp thông tin đặt hàng
-  "general": cho các câu hỏi khác
+  "size": nếu người dùng cần tư vấn size dựa trên cân nặng/chiều cao (ví dụ: "tôi 50kg thì mặc size nào?")
+  "color": nếu người dùng hỏi về màu sắc sản phẩm hoặc yêu cầu danh sách sản phẩm theo màu (ví dụ: "có màu nào?", "còn đầm nào màu đen nữa ko?")
+  "order_info": nếu người dùng cung cấp thông tin đặt hàng (ví dụ: "tôi muốn đặt đầm maxi màu đen size M")
+  "general": cho các câu hỏi khác không thuộc các trường hợp trên
 - Trích xuất thực thể (entities):
-  product: sản phẩm cụ thể được đề cập (nếu có)
-  category: danh mục sản phẩm được đề cập (nếu có)
+  product: sản phẩm cụ thể được đề cập (nếu có, ví dụ: "Đầm Maxi")
+  category: danh mục sản phẩm được đề cập (nếu có, ví dụ: "Áo Quần")
   weight: cân nặng (nếu có)
   height: chiều cao (nếu có)
   bargain_price: giá khách hàng đề xuất (nếu có, ví dụ: "150k")
   order_info: object chứa các trường như name, address, phone, product_name, color, size, quantity nếu người dùng cung cấp
 - Lưu ý:
-  - Nếu ý định là "order_info", trích xuất tất cả thông tin đặt hàng mà người dùng cung cấp. Nếu người dùng chỉ cung cấp một phần thông tin, kết hợp với thông tin từ lịch sử hội thoại (product_info hoặc tin nhắn trước) để hoàn thiện đơn hàng. Nếu chỉ cung cấp một trường, trả về order_info với trường đó và các trường còn lại là chuỗi rỗng.
+  - Nếu ý định là "color" và người dùng hỏi về sản phẩm theo màu (ví dụ: "còn đầm nào màu đen nữa ko?"), đặt product là chuỗi rỗng (""), category là danh mục liên quan (nếu có, ví dụ: "Áo Quần"), và color là màu được đề cập (ví dụ: "đen").
+  - Nếu ý định là "order_info", trích xuất tất cả thông tin đặt hàng mà người dùng cung cấp. Nếu người dùng chỉ cung cấp một phần thông tin, kết hợp với thông tin từ lịch sử hội thoại (product_info hoặc tin nhắn trước) để hoàn thiện đơn hàng.
   - Nếu ý định là "product_details", "price", "size", hoặc "color", luôn cố gắng xác định product và category từ tin nhắn hiện tại hoặc lịch sử hội thoại gần nhất (sử dụng product_info từ lịch sử hoặc sentImageContext). Nếu người dùng dùng đại từ như "nó", "sản phẩm đó", lấy product/category từ product_info của tin nhắn trước đó trong lịch sử.
-  - Nếu người dùng chỉ hỏi về các size có sẵn (ví dụ: "Có size nào?", "Shop có size gì?"), đặt intent là "size_chart" và KHÔNG trích xuất weight/height.
-  - Nếu người dùng hỏi tư vấn size dựa trên cân nặng/chiều cao, đặt intent là "size" và trích xuất weight/height nếu có.
   - Nếu không xác định được product hoặc category từ tin nhắn hiện tại, lấy giá trị gần nhất từ product_info trong lịch sử hội thoại hoặc sentImageContext (nếu có).
   - Nếu không xác định được, trả về chuỗi rỗng cho các trường đó.
 
@@ -358,7 +358,7 @@ Yêu cầu:
     }
   }
 }
-  `;
+`;
 
   const response = await openai.chat.completions.create({
     model: 'gpt-4o-mini',
