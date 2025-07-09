@@ -1,4 +1,4 @@
-const { imageContext } = require('./imageContext');
+const { storeImageContext, getImageContext, sentImageContext } = require('./imageContext');
 
 async function searchProduct(database, product, category, senderId, color = '') {
   console.log('searchProduct inputs:', { product, category, senderId, color });
@@ -25,8 +25,8 @@ async function searchProduct(database, product, category, senderId, color = '') 
 
   console.log('searchProduct results:', results);
   if (results.length === 0 && senderId) {
-    console.log('Falling back to image context:', imageContext.getImageContext(senderId));
-    const context = imageContext.getImageContext(senderId) || [];
+    console.log('Falling back to image context:', getImageContext(senderId));
+    const context = getImageContext(senderId) || [];
     results = context
       .filter(c => 
         (c.productInfo.product && c.productInfo.product.toLowerCase().includes(product?.toLowerCase() || '')) ||
