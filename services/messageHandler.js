@@ -15,7 +15,7 @@ const {
 } = require('./messageHandler/utils');
 const { isRateLimited } = require('./rateLimit');
 const { storeMessage, getHistory } = require('./messageHistory');
-const { processMessage } = require('./processMessage');
+const { processMessage } = require('./messageProcessing/processMessage');
 const { sendResponse, sendMessage } = require('./sendResponse');
 const { getSystemPrompt } = require('../reference/promptData');
 const { compareAndGetProductDetails } = require('./visionProductMatcher');
