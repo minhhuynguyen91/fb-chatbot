@@ -1,6 +1,6 @@
-const { productSearcher } = require('./productSearcher');
-const { orderManager } = require('./orderManager');
-const { proactivePrompt } = require('./proactivePrompt');
+const { searchProduct } = require('./productSearcher');
+const { mergeOrderInfo, saveOrderInfo, handleOrderInfo, getHistory } = require('./orderManager');
+const { getGptProactivePrompt } = require('./proactivePrompt');
 const { OpenAI } = require('openai');
 const getUserProfile = require('../getUserProfile');
 
@@ -10,19 +10,19 @@ async function handleIntent(analysis, message, senderId, PRODUCT_DATABASE, SYSTE
   const { intent, entities } = analysis;
   const { product, category } = entities || {};
   const userProfile = await getUserProfile(senderId);
-  const prevOrder = orderManager.getPartialOrder(senderId);
+  const prevOrder = getPartialOrder(senderId);
   let response;
 
   switch (intent) {
     case 'image': {
-      const images = await productSearcher.searchProduct(PRODUCT_DATABASE, product, category, senderId);
+      const images = await searchProduct(PRODUCT_DATABASE, product, category, senderId);
       response = images.length > 0
         ? { type: 'image', image_url: images.map(image => image.image_url).join('\n') }
         : { type: 'text', content: 'Không tìm thấy ảnh, vui lòng chọn sản phẩm khác ạ' };
       break;
     }
     case 'product_details': {
-      const targetProduct = (await productSearcher.searchProduct(PRODUCT_DATABASE, product, category, senderId))?.[0];
+      const targetProduct = (await searchProduct(PRODUCT_DATABASE, product, category, senderId))?.[0];
       if (targetProduct) {
         const systemPrompt = `
           ${SYSTEM_PROMPT}
@@ -51,7 +51,7 @@ async function handleIntent(analysis, message, senderId, PRODUCT_DATABASE, SYSTE
       break;
     }
     case 'price': {
-      const targetProduct = (await productSearcher.searchProduct(PRODUCT_DATABASE, product, category, senderId))?.[0];
+      const targetProduct = (await searchProduct(PRODUCT_DATABASE, product, category, senderId))?.[0];
       if (targetProduct) {
         const systemPrompt = `
           ${SYSTEM_PROMPT}
@@ -81,7 +81,7 @@ async function handleIntent(analysis, message, senderId, PRODUCT_DATABASE, SYSTE
       break;
     }
     case 'order_info': {
-      response = await orderManager.handleOrderInfo(senderId, entities, prevOrder, userProfile);
+      response = await handleOrderInfo(senderId, entities, prevOrder, userProfile);
       break;
     }
     case 'size': {
@@ -99,7 +99,7 @@ async function handleIntent(analysis, message, senderId, PRODUCT_DATABASE, SYSTE
         `.trim();
         const messages = [
           { role: 'system', content: sizePrompt },
-          ...(await orderManager.getHistory(senderId)).slice(-6)
+          ...(await getHistory(senderId)).slice(-6)
         ];
         const chatResponse = await openai.chat.completions.create({
           model: 'gpt-4o-mini',
@@ -194,7 +194,7 @@ async function handleIntent(analysis, message, senderId, PRODUCT_DATABASE, SYSTE
         `;
         const messages = [
           { role: 'system', content: prompt },
-          ...(await orderManager.getHistory(senderId)).slice(-6)
+          ...(await getHistory(senderId)).slice(-6)
         ];
         const chatResponse = await openai.chat.completions.create({
           model: 'gpt-4o-mini',
@@ -207,7 +207,7 @@ async function handleIntent(analysis, message, senderId, PRODUCT_DATABASE, SYSTE
   }
 
   if (intent !== 'order_info' && response.type === 'text') {
-    const proactivePromptText = await proactivePrompt.getGptProactivePrompt(senderId, entities, prevOrder, userProfile, PRODUCT_DATABASE, SYSTEM_PROMPT, response);
+    const proactivePromptText = await getGptProactivePrompt(senderId, entities, prevOrder, userProfile, PRODUCT_DATABASE, SYSTEM_PROMPT, response);
     if (proactivePromptText) {
       response.content += `\n${proactivePromptText}`;
     }

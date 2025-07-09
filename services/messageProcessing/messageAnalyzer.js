@@ -2,7 +2,7 @@ const { OpenAI } = require('openai');
 const { getSystemPrompt } = require('../../reference/promptData');
 const { getProductDatabase } = require('../../db/productInfo');
 const { getHistory } = require('../messageHistory');
-const { imageContext } = require('./imageContext');
+const { getImageContext } = require('./imageContext');
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -28,7 +28,7 @@ async function analyzeMessage(senderId, message) {
 Phân tích tin nhắn người dùng: ${message}
 Lịch sử hội thoại: ${JSON.stringify(messages)}
 Ngữ cảnh sản phẩm: ${productContext}
-Hình ảnh đã gửi gần đây: ${JSON.stringify(imageContext.getImageContext(senderId) || [])}
+Hình ảnh đã gửi gần đây: ${JSON.stringify(getImageContext(senderId) || [])}
 
 Yêu cầu:
 - Nếu người dùng đề cập đến sản phẩm cụ thể như "Đầm Maxi có màu nào?" hoặc hỏi về màu sắc (ví dụ: "còn đầm nào màu đen nữa ko?") và có hình ảnh sản phẩm trong lịch sử (is_image: true với product_info) hoặc sentImageContext, hãy sử dụng product_info để xác định product/category/color.
