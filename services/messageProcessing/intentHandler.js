@@ -88,7 +88,7 @@ async function handleIntent(analysis, message, senderId, PRODUCT_DATABASE, SYSTE
     case 'size': {
       const customerWeight = entities.weight || '';
       const customerHeight = entities.height || '';
-      const targetProduct = (await productSearcher.searchProduct(PRODUCT_DATABASE, product, category, senderId))?.[0];
+      const targetProduct = (await searchProduct(PRODUCT_DATABASE, product, category, senderId))?.[0];
       if (targetProduct && (customerWeight || customerHeight)) {
         const sizePrompt = `
           Sản phẩm: ${targetProduct.product}
@@ -116,7 +116,7 @@ async function handleIntent(analysis, message, senderId, PRODUCT_DATABASE, SYSTE
       break;
     }
     case 'size_chart': {
-      const targetProduct = (await productSearcher.searchProduct(PRODUCT_DATABASE, product, category, senderId))?.[0];
+      const targetProduct = (await searchProduct(PRODUCT_DATABASE, product, category, senderId))?.[0];
       response = targetProduct && targetProduct.size
         ? { type: 'text', content: `Dạ ${userProfile.first_name} ${userProfile.last_name}, đây là bảng size cho sản phẩm ${targetProduct.product}:\n${targetProduct.size.trim()}` }
         : { type: 'text', content: 'Hiện tại bên em chưa có bảng size cho sản phẩm này.' };
@@ -129,7 +129,7 @@ async function handleIntent(analysis, message, senderId, PRODUCT_DATABASE, SYSTE
       
       if (targetProduct && !targetColor) {
         // Case: Asking for colors of a specific product (e.g., "Đầm Maxi có màu nào?")
-        const product = await productSearcher.searchProduct(PRODUCT_DATABASE, targetProduct, category, senderId);
+        const product = await searchProduct(PRODUCT_DATABASE, targetProduct, category, senderId);
         if (product.length > 0) {
           const colors = product[0].color
             .split('\n')
@@ -149,7 +149,7 @@ async function handleIntent(analysis, message, senderId, PRODUCT_DATABASE, SYSTE
         }
       } else {
         // Case: Asking for products of a specific color (e.g., "còn đầm nào màu đen nữa ko?")
-        const products = await productSearcher.searchProduct(PRODUCT_DATABASE, targetProduct, category, senderId, targetColor);
+        const products = await searchProduct(PRODUCT_DATABASE, targetProduct, category, senderId, targetColor);
         if (products.length > 0) {
           const productNames = products.map(p => p.product).join(', ');
           response = {
@@ -169,7 +169,7 @@ async function handleIntent(analysis, message, senderId, PRODUCT_DATABASE, SYSTE
       const userName = userProfile ? `${userProfile.first_name} ${userProfile.last_name}` : 'khách';
       if (entities.product && message.toLowerCase().includes('màu nào')) {
         // Fallback for color queries misclassified as general
-        const product = await productSearcher.searchProduct(PRODUCT_DATABASE, entities.product, category, senderId);
+        const product = await searchProduct(PRODUCT_DATABASE, entities.product, category, senderId);
         if (product.length > 0) {
           const colors = product[0].color
             .split('\n')
