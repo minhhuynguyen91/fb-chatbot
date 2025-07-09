@@ -1,7 +1,7 @@
 // Import utilities and external dependencies
 const { isRateLimited } = require('../rateLimit.js');
 const { storeMessage, getHistory } = require('../messageHistory.js');
-const { processMessage } = require('../processMessage.js');
+const { processMessage } = require('../messageProcessing/processMessage.js');
 const { sendResponse, sendMessage } = require('../sendResponse.js');
 const { getSystemPrompt } = require('../../reference/promptData.js');
 const { compareAndGetProductDetails } = require('../visionProductMatcher.js');

@@ -1,6 +1,6 @@
 const axios = require('axios');
 const pool = require('../db/pool.js');
-const { storeImageContext } = require('./processMessage');
+const { storeImageContext } = require('./messageProcessing/imageContext');
 const { getProductDatabase } = require('../db/productInfo.js');
 
 const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
