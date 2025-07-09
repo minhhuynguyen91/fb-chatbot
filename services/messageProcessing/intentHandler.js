@@ -3,6 +3,7 @@ const { mergeOrderInfo, saveOrderInfo, handleOrderInfo, getHistory } = require('
 const { getGptProactivePrompt } = require('./proactivePrompt');
 const { OpenAI } = require('openai');
 const getUserProfile = require('../getUserProfile');
+const { getPartialOrder, setPartialOrder, clearPartialOrder } = require('../partialOrderStore');
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
