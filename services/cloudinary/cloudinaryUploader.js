@@ -29,7 +29,7 @@ async function uploadMessengerImageToCloudinary(imageUrl, senderId) {
     // Compress the image using sharp (aggressive compression)
     const compressedImageBuffer = await sharp(response.data)
       .resize({ width: 800, withoutEnlargement: true }) // Resize to max 800px width
-      .jpeg({ quality: 50 }) // Low quality for aggressive compression
+      .jpeg({ quality: 80 }) // Low quality for aggressive compression
       .toBuffer();
 
     // Get compressed image size
