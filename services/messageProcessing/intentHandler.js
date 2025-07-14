@@ -100,7 +100,7 @@ async function handleIntent(analysis, message, senderId, PRODUCT_DATABASE, SYSTE
         `.trim();
         const messages = [
           { role: 'system', content: sizePrompt },
-          ...(await getHistory(senderId)).slice(-6)
+          ...(await getHistory(senderId)).slice(-10)
         ];
         const chatResponse = await openai.chat.completions.create({
           model: 'gpt-4o-mini',
@@ -188,21 +188,37 @@ async function handleIntent(analysis, message, senderId, PRODUCT_DATABASE, SYSTE
           };
         }
       } else {
-        const prompt = `
-          ${SYSTEM_PROMPT} 
-          Danh mục sản phẩm: ${[...new Set(PRODUCT_DATABASE.map(r => r.category))].join(', ')},
-          Luôn gọi khách hàng bằng tên: ${userName}
-        `;
-        const messages = [
-          { role: 'system', content: prompt },
-          ...(await getHistory(senderId)).slice(-6)
-        ];
-        const chatResponse = await openai.chat.completions.create({
-          model: 'gpt-4o-mini',
-          messages,
-          max_tokens: 150
-        });
-        response = { type: 'text', content: chatResponse.choices[0].message.content.trim() };
+        // Handle vague purchase requests by suggesting dress products
+        const vaguePurchaseKeywords = ['mua đồ', 'muốn mua', 'có bán gì', 'có gì bán', 'mua quần áo'];
+        const isVaguePurchase = vaguePurchaseKeywords.some(keyword => message.toLowerCase().includes(keyword));
+        if (isVaguePurchase) {
+          const categories = [...new Set(PRODUCT_DATABASE.map(r => r.category))];
+          const dressCategory = categories.includes('Áo Quần') ? 'Áo Quần' : categories[0] || 'sản phẩm';
+          const products = await searchProduct(PRODUCT_DATABASE, '', dressCategory, senderId);
+          const productList = products.length > 0
+            ? products.slice(0, 5).map(p => `- ${p.product} (${p.color ? `màu: ${p.color.split('\n').filter(c => c).join(', ')}` : 'nhiều màu'})`).join('\n')
+            : 'Đầm Maxi, Đầm Bodycon, Đầm Chữ A, Đầm Suông, Đầm Midi';
+          response = {
+            type: 'text',
+            content: `Dạ ${userName} ơi, bên em có rất nhiều mẫu đầm xinh xắn trong danh mục ${dressCategory} nè:\n\n${productList}\n\nMình thích mẫu nào hoặc muốn xem thêm về giá, size, hay màu sắc thì cho em biết nha! 💖`
+          };
+        } else {
+          const prompt = `
+            ${SYSTEM_PROMPT} 
+            Danh mục sản phẩm: ${[...new Set(PRODUCT_DATABASE.map(r => r.category))].join(', ')},
+            Luôn gọi khách hàng bằng tên: ${userName}
+          `;
+          const messages = [
+            { role: 'system', content: prompt },
+            ...(await getHistory(senderId)).slice(-6)
+          ];
+          const chatResponse = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages,
+            max_tokens: 150
+          });
+          response = { type: 'text', content: chatResponse.choices[0].message.content.trim() };
+        }
       }
     }
   }
