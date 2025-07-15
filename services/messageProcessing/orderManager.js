@@ -1,6 +1,7 @@
 const { getPartialOrder, setPartialOrder, clearPartialOrder } = require('../partialOrderStore');
 const pool = require('../../db/pool');
 const { getHistory } = require('../messageHistory');
+const axios = require('axios'); // Add axios for making HTTP requests
 
 function mergeOrderInfo(prevOrder, newInfo) {
   const fields = ['name', 'address', 'phone', 'product_name', 'color', 'size', 'quantity'];
@@ -13,10 +14,25 @@ function mergeOrderInfo(prevOrder, newInfo) {
   return merged;
 }
 
+async function getTagIdByText(pageId, tagText) {
+  try {
+    const response = await axios.get(`https://pages.fm/api/public_api/v1/pages/${process.env.PANCAKE_PAGE_ID}/tags`, {
+      headers: {
+        Authorization: `Bearer ${process.env.PANCAKE_PAGE_TOKEN}`
+      }
+    });
+    const tag = response.data.tags.find(t => t.text === tagText);
+    return tag ? tag.id : null;
+  } catch (err) {
+    console.error('Error fetching tags:', err);
+    return null;
+  }
+}
+
 async function saveOrderInfo(senderId, orderInfo) {
   try {
-    await pool.query(
-      'INSERT INTO pool.order_info (sender_id, name, address, phone, product_name, color, size, quantity, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())',
+    const result = await pool.query(
+      'INSERT INTO pool.order_info (sender_id, name, address, phone, product_name, color, size, quantity, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW()) RETURNING id',
       [
         senderId,
         orderInfo.name,
@@ -28,8 +44,29 @@ async function saveOrderInfo(senderId, orderInfo) {
         orderInfo.quantity
       ]
     );
+    
+    const orderId = result.rows[0].id;
+    const pageId = process.env.PANCAKE_PAGE_ID; // Store your page ID in environment variables
+    const tagId = await getTagIdByText(pageId, 'ĐÃ TẠO ĐƠN');
+    
+    if (tagId) {
+      const pancakeApiUrl = `https://pages.fm/api/public_api/v1/leads/${senderId}/tags`;
+      await axios.post(
+        pancakeApiUrl,
+        { tag_id: tagId },
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.PANCAKE_PAGE_ID}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      console.log(`Tag "ĐÃ TẠO ĐƠN" (ID: ${tagId}) added to order ${orderId}`);
+    } else {
+      console.error('Tag "ĐÃ TẠO ĐƠN" not found');
+    }
   } catch (err) {
-    console.error('Error saving order info:', err);
+    console.error('Error saving order info or adding tag:', err);
   }
 }
 
