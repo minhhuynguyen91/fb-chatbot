@@ -58,32 +58,28 @@ async function getConversationId(pageId, senderId) {
       return null;
     }
 
-    const response = await axios.get(`https://pages.fm/api/public_api/v1/pages/${pageId}/conversations`, {
-      params: { page_access_token: pageAccessToken }
+    const response = await axios.get(`https://pages.fm/api/public_api/v2/pages/${pageId}/conversations`, {
+      params: { 
+        page_access_token: pageAccessToken,
+        limit: 100,
+        offset: 0
+      }
     });
 
     console.log('Pancake API response (conversations):', JSON.stringify(response.data, null, 2));
 
-    if (!response.data) {
-      console.error('Invalid API response: response.data is undefined');
-      return null;
-    }
-
-    // Check for different possible response structures
-    const conversations = response.data.conversations || response.data.data || response.data;
-    if (!Array.isArray(conversations)) {
+    if (!response.data || !Array.isArray(response.data.conversations)) {
       console.error('Invalid API response: conversations array not found');
       return null;
     }
 
-    // Try matching by last_sent_by.id or participants
-    const conversation = conversations.find(c => 
-      (c.last_sent_by?.id === senderId) || 
-      (c.participants?.some(p => p.id === senderId))
+    const conversation = response.data.conversations.find(c => 
+      c.from?.id === senderId || 
+      c.page_customer?.psid === senderId
     );
     if (!conversation) {
       console.error(`Conversation for senderId ${senderId} not found. Available conversation IDs:`, 
-        conversations.map(c => c.id));
+        response.data.conversations.map(c => c.id));
       return null;
     }
 
@@ -139,7 +135,7 @@ async function saveOrderInfo(senderId, orderInfo) {
     }
 
     // Add tag to conversation
-    const pancakeApiUrl = `https://pages.fm/api/public_api/v1/conversations/${conversationId}/tags`;
+    const pancakeApiUrl = `https://pages.fm/api/public_api/v2/conversations/${conversationId}/tags`;
     try {
       const response = await axios.post(
         pancakeApiUrl,
