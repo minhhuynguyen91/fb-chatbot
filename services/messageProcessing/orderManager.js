@@ -1,7 +1,7 @@
 const { getPartialOrder, setPartialOrder, clearPartialOrder } = require('../partialOrderStore');
 const pool = require('../../db/pool');
 const { getHistory } = require('../messageHistory');
-const axios = require('axios'); // Add axios for making HTTP requests
+const axios = require('axios');
 
 function mergeOrderInfo(prevOrder, newInfo) {
   const fields = ['name', 'address', 'phone', 'product_name', 'color', 'size', 'quantity'];
@@ -16,30 +16,29 @@ function mergeOrderInfo(prevOrder, newInfo) {
 
 async function getTagIdByText(pageId, tagText) {
   try {
-    const pageAccessToken = process.env.PANCAKE_PAGE_TOKEN; // Store page_access_token in environment variables
+    const pageAccessToken = process.env.PANCAKE_PAGE_TOKEN;
     if (!pageAccessToken) {
-      console.error('Missing PANCAKE_PAGE_ACCESS_TOKEN in environment variables');
+      console.error('Missing PANCAKE_PAGE_TOKEN in environment variables');
       return null;
     }
 
     const response = await axios.get(`https://pages.fm/api/public_api/v1/pages/${pageId}/tags`, {
-      params: {
-        page_access_token: pageAccessToken // Pass page_access_token as a query parameter
-      }
+      params: { page_access_token: pageAccessToken }
     });
 
     // Log the response for debugging
-    console.log('Pancake API response:', JSON.stringify(response.data, null, 2));
+    console.log('Pancake API response (tags):', JSON.stringify(response.data, null, 2));
 
-    // Check if response.data and response.data.tags exist
     if (!response.data || !Array.isArray(response.data.tags)) {
       console.error('Invalid API response: tags array not found');
       return null;
     }
 
-    const tag = response.data.tags.find(t => t.text === 'ĐÃ TẠO ĐƠN');
+    // Normalize text for comparison
+    const normalizedTagText = tagText.normalize('NFC').toUpperCase();
+    const tag = response.data.tags.find(t => t.text.normalize('NFC').toUpperCase() === normalizedTagText);
     if (!tag) {
-      console.error(`Tag "${tagText}" not found in API response`);
+      console.error(`Tag "${tagText}" not found. Available tags:`, response.data.tags.map(t => t.text));
       return null;
     }
 
@@ -47,7 +46,7 @@ async function getTagIdByText(pageId, tagText) {
   } catch (err) {
     console.error('Error fetching tags:', err.message);
     if (err.response) {
-      console.error('API error response:', JSON.stringify(err.response.data, null, 2));
+      console.error('API error response (tags):', JSON.stringify(err.response.data, null, 2));
     }
     return null;
   }
@@ -55,13 +54,36 @@ async function getTagIdByText(pageId, tagText) {
 
 async function getConversationId(pageId, senderId) {
   try {
+    const pageAccessToken = process.env.PANCAKE_PAGE_TOKEN;
+    if (!pageAccessToken) {
+      console.error('Missing PANCAKE_PAGE_TOKEN in environment variables');
+      return null;
+    }
+
     const response = await axios.get(`https://pages.fm/api/public_api/v1/pages/${pageId}/conversations`, {
-      params: { page_access_token: process.env.PANCAKE_PAGE_ACCESS_TOKEN }
+      params: { page_access_token: pageAccessToken }
     });
-    const conversation = response.data.conversations.find(c => c.last_sent_by.id === senderId);
-    return conversation ? conversation.id : null;
+
+    // Log the response for debugging
+    console.log('Pancake API response (conversations):', JSON.stringify(response.data, null, 2));
+
+    if (!response.data || !Array.isArray(response.data.conversations)) {
+      console.error('Invalid API response: conversations array not found');
+      return null;
+    }
+
+    const conversation = response.data.conversations.find(c => c.last_sent_by?.id === senderId);
+    if (!conversation) {
+      console.error(`Conversation for senderId ${senderId} not found`);
+      return null;
+    }
+
+    return conversation.id;
   } catch (err) {
     console.error('Error fetching conversation:', err.message);
+    if (err.response) {
+      console.error('API error response (conversations):', JSON.stringify(err.response.data, null, 2));
+    }
     return null;
   }
 }
@@ -90,36 +112,42 @@ async function saveOrderInfo(senderId, orderInfo) {
     // Validate environment variables
     if (!pageId || !pageAccessToken) {
       console.error('Missing PANCAKE_PAGE_ID or PANCAKE_PAGE_TOKEN in environment variables');
-      return; // Skip tagging if configuration is missing
+      return;
     }
 
     // Get tag ID dynamically
-    const tagId = await getTagIdByText(pageId, 'ĐÃ TẠO ĐƠN') || 18; // Fallback to ID 18 if dynamic fetch fails
-    const conversationId = await getConversationId(pageId, senderId) || senderId;
+    const tagId = await getTagIdByText(pageId, 'ĐÃ TẠO ĐƠN') || 18;
+    const conversationId = await getConversationId(pageId, senderId);
+
+    if (!conversationId) {
+      console.error(`Skipping tag assignment: No conversation ID found for senderId ${senderId}`);
+      return;
+    }
 
     if (tagId) {
-      const pancakeApiUrl = `https://pages.fm/api/public_api/v1/leads/${conversationId}/tags`;
-      await axios.post(
-        pancakeApiUrl,
-        { tag_id: tagId },
-        {
-          params: {
-            page_access_token: pageAccessToken // Pass page_access_token for the POST request
-          },
-          headers: {
-            'Content-Type': 'application/json'
+      const pancakeApiUrl = `https://pages.fm/api/public_api/v1/conversations/${conversationId}/tags`;
+      try {
+        const response = await axios.post(
+          pancakeApiUrl,
+          { tag_id: tagId },
+          {
+            params: { page_access_token: pageAccessToken },
+            headers: { 'Content-Type': 'application/json' }
           }
+        );
+        console.log(`Tag "ĐÃ TẠO ĐƠN" (ID: ${tagId}) added to conversation ${conversationId} for order ${orderId}`);
+        console.log('Tag API response:', JSON.stringify(response.data, null, 2));
+      } catch (tagErr) {
+        console.error('Error adding tag:', tagErr.message);
+        if (tagErr.response) {
+          console.error('Tag API error response:', JSON.stringify(tagErr.response.data, null, 2));
         }
-      );
-      console.log(`Tag "ĐÃ TẠO ĐƠN" (ID: ${tagId}) added to order ${orderId}`);
+      }
     } else {
       console.error('Skipping tag assignment: Tag "ĐÃ TẠO ĐƠN" not found');
     }
   } catch (err) {
-    console.error('Error saving order info or adding tag:', err.message);
-    if (err.response) {
-      console.error('API error response:', JSON.stringify(err.response.data, null, 2));
-    }
+    console.error('Error saving order info:', err.message);
   }
 }
 
