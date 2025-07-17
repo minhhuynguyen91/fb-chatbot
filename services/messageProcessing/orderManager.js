@@ -26,7 +26,7 @@ async function getTagIdByText(pageId, tagText) {
       params: { page_access_token: pageAccessToken }
     });
 
-    console.log('Pancake API response (tags):', JSON.stringify(response.data, null, 2));
+    // console.log('Pancake API response (tags):', JSON.stringify(response.data, null, 2));
 
     if (!response.data || !Array.isArray(response.data.tags)) {
       console.error('Invalid API response: tags array not found');
@@ -66,7 +66,7 @@ async function getConversationId(pageId, senderId) {
       }
     });
 
-    console.log('Pancake API response (conversations):', JSON.stringify(response.data, null, 2));
+    // console.log('Pancake API response (conversations):', JSON.stringify(response.data, null, 2));
 
     if (!response.data || !Array.isArray(response.data.conversations)) {
       console.error('Invalid API response: conversations array not found');
