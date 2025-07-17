@@ -135,7 +135,7 @@ async function saveOrderInfo(senderId, orderInfo) {
     }
 
     // Add tag to conversation
-    const pancakeApiUrl = `https://pages.fm/api/public_api/v2/conversations/${conversationId}/tags`;
+    const pancakeApiUrl = `https://pages.fm/api/public_api/v1/pages/${process.env.PANCAKE_PAGE_ID}/conversations/${conversationId}/tags`;
     try {
       const response = await axios.post(
         pancakeApiUrl,
