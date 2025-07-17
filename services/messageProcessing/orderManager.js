@@ -139,7 +139,7 @@ async function saveOrderInfo(senderId, orderInfo) {
     try {
       const response = await axios.post(
         pancakeApiUrl,
-        { tag_id: tagId },
+        { action: 'add', tag_id: tagId },
         {
           params: { page_access_token: pageAccessToken },
           headers: { 'Content-Type': 'application/json' }
