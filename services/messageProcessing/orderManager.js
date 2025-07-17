@@ -1,7 +1,18 @@
 const { getPartialOrder, setPartialOrder, clearPartialOrder } = require('../partialOrderStore');
 const pool = require('../../db/pool');
 const { getHistory } = require('../messageHistory');
-const axios = require('axios'); // Ensure axios is installed
+const axios = require('axios'); // Add axios for making HTTP requests
+
+function mergeOrderInfo(prevOrder, newInfo) {
+  const fields = ['name', 'address', 'phone', 'product_name', 'color', 'size', 'quantity'];
+  const merged = { ...prevOrder };
+  for (const field of fields) {
+    if (newInfo[field] && newInfo[field].toString().trim() !== '') {
+      merged[field] = newInfo[field];
+    }
+  }
+  return merged;
+}
 
 async function getTagIdByText(pageId, tagText) {
   try {
@@ -125,7 +136,7 @@ async function handleOrderInfo(senderId, entities, prevOrder, userProfile) {
   } else {
     await saveOrderInfo(senderId, orderInfo);
     clearPartialOrder(senderId);
-    return { type: 'order', content: 'Thông tin đặt hàng đã được lưu và gắn thẻ "ĐÃ TẠO ĐƠN". Cảm ơn ạ!' };
+    return { type: 'order', content: 'Thông tin đặt hàng đã được lưu. Cảm ơn ạ!' };
   }
 }
 
