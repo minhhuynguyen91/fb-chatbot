@@ -29,7 +29,7 @@ async function getTagIdByText(pageId, tagText) {
     });
 
     // Log the response for debugging
-    //console.log('Pancake API response:', JSON.stringify(response.data, null, 2));
+    console.log('Pancake API response:', JSON.stringify(response.data, null, 2));
 
     // Check if response.data and response.data.tags exist
     if (!response.data || !Array.isArray(response.data.tags)) {
