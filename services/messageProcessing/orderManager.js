@@ -29,7 +29,7 @@ async function getTagIdByText(pageId, tagText) {
     });
 
     // Log the response for debugging
-    console.log('Pancake API response:', JSON.stringify(response.data, null, 2));
+    //console.log('Pancake API response:', JSON.stringify(response.data, null, 2));
 
     // Check if response.data and response.data.tags exist
     if (!response.data || !Array.isArray(response.data.tags)) {
@@ -49,6 +49,19 @@ async function getTagIdByText(pageId, tagText) {
     if (err.response) {
       console.error('API error response:', JSON.stringify(err.response.data, null, 2));
     }
+    return null;
+  }
+}
+
+async function getConversationId(pageId, senderId) {
+  try {
+    const response = await axios.get(`https://pages.fm/api/public_api/v1/pages/${pageId}/conversations`, {
+      params: { page_access_token: process.env.PANCAKE_PAGE_ACCESS_TOKEN }
+    });
+    const conversation = response.data.conversations.find(c => c.last_sent_by.id === senderId);
+    return conversation ? conversation.id : null;
+  } catch (err) {
+    console.error('Error fetching conversation:', err.message);
     return null;
   }
 }
@@ -82,9 +95,10 @@ async function saveOrderInfo(senderId, orderInfo) {
 
     // Get tag ID dynamically
     const tagId = await getTagIdByText(pageId, 'ĐÃ TẠO ĐƠN') || 18; // Fallback to ID 18 if dynamic fetch fails
+    const conversationId = await getConversationId(pageId, senderId) || senderId;
 
     if (tagId) {
-      const pancakeApiUrl = `https://pages.fm/api/public_api/v1/leads/${senderId}/tags`;
+      const pancakeApiUrl = `https://pages.fm/api/public_api/v1/leads/${conversationId}/tags`;
       await axios.post(
         pancakeApiUrl,
         { tag_id: tagId },
