@@ -26,7 +26,6 @@ async function getTagIdByText(pageId, tagText) {
       params: { page_access_token: pageAccessToken }
     });
 
-    // Log the response for debugging
     console.log('Pancake API response (tags):', JSON.stringify(response.data, null, 2));
 
     if (!response.data || !Array.isArray(response.data.tags)) {
@@ -34,7 +33,6 @@ async function getTagIdByText(pageId, tagText) {
       return null;
     }
 
-    // Normalize text for comparison
     const normalizedTagText = tagText.normalize('NFC').toUpperCase();
     const tag = response.data.tags.find(t => t.text.normalize('NFC').toUpperCase() === normalizedTagText);
     if (!tag) {
@@ -64,17 +62,28 @@ async function getConversationId(pageId, senderId) {
       params: { page_access_token: pageAccessToken }
     });
 
-    // Log the response for debugging
     console.log('Pancake API response (conversations):', JSON.stringify(response.data, null, 2));
 
-    if (!response.data || !Array.isArray(response.data.conversations)) {
+    if (!response.data) {
+      console.error('Invalid API response: response.data is undefined');
+      return null;
+    }
+
+    // Check for different possible response structures
+    const conversations = response.data.conversations || response.data.data || response.data;
+    if (!Array.isArray(conversations)) {
       console.error('Invalid API response: conversations array not found');
       return null;
     }
 
-    const conversation = response.data.conversations.find(c => c.last_sent_by?.id === senderId);
+    // Try matching by last_sent_by.id or participants
+    const conversation = conversations.find(c => 
+      (c.last_sent_by?.id === senderId) || 
+      (c.participants?.some(p => p.id === senderId))
+    );
     if (!conversation) {
-      console.error(`Conversation for senderId ${senderId} not found`);
+      console.error(`Conversation for senderId ${senderId} not found. Available conversation IDs:`, 
+        conversations.map(c => c.id));
       return null;
     }
 
@@ -117,34 +126,36 @@ async function saveOrderInfo(senderId, orderInfo) {
 
     // Get tag ID dynamically
     const tagId = await getTagIdByText(pageId, 'ĐÃ TẠO ĐƠN') || 18;
-    const conversationId = await getConversationId(pageId, senderId);
+    if (!tagId) {
+      console.error('Skipping tag assignment: Tag "ĐÃ TẠO ĐƠN" not found');
+      return;
+    }
 
+    // Get conversation ID
+    const conversationId = await getConversationId(pageId, senderId);
     if (!conversationId) {
       console.error(`Skipping tag assignment: No conversation ID found for senderId ${senderId}`);
       return;
     }
 
-    if (tagId) {
-      const pancakeApiUrl = `https://pages.fm/api/public_api/v1/conversations/${conversationId}/tags`;
-      try {
-        const response = await axios.post(
-          pancakeApiUrl,
-          { tag_id: tagId },
-          {
-            params: { page_access_token: pageAccessToken },
-            headers: { 'Content-Type': 'application/json' }
-          }
-        );
-        console.log(`Tag "ĐÃ TẠO ĐƠN" (ID: ${tagId}) added to conversation ${conversationId} for order ${orderId}`);
-        console.log('Tag API response:', JSON.stringify(response.data, null, 2));
-      } catch (tagErr) {
-        console.error('Error adding tag:', tagErr.message);
-        if (tagErr.response) {
-          console.error('Tag API error response:', JSON.stringify(tagErr.response.data, null, 2));
+    // Add tag to conversation
+    const pancakeApiUrl = `https://pages.fm/api/public_api/v1/conversations/${conversationId}/tags`;
+    try {
+      const response = await axios.post(
+        pancakeApiUrl,
+        { tag_id: tagId },
+        {
+          params: { page_access_token: pageAccessToken },
+          headers: { 'Content-Type': 'application/json' }
         }
+      );
+      console.log(`Tag "ĐÃ TẠO ĐƠN" (ID: ${tagId}) added to conversation ${conversationId} for order ${orderId}`);
+      console.log('Tag API response:', JSON.stringify(response.data, null, 2));
+    } catch (tagErr) {
+      console.error('Error adding tag:', tagErr.message);
+      if (tagErr.response) {
+        console.error('Tag API error response:', JSON.stringify(tagErr.response.data, null, 2));
       }
-    } else {
-      console.error('Skipping tag assignment: Tag "ĐÃ TẠO ĐƠN" not found');
     }
   } catch (err) {
     console.error('Error saving order info:', err.message);
