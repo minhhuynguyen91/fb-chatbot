@@ -32,6 +32,7 @@ router.post('/', async (req, res) => {
       }
       if (entry.changes) {
         entry.changes.forEach(change => {
+          console.log('Received change event:', JSON.stringify(change, null, 2));
           if (change.field === 'feed' && change.value.verb === 'add' && change.value.item === 'comment') {
             const senderId = change.value.from.id;
             const commentText = change.value.message;
@@ -39,6 +40,7 @@ router.post('/', async (req, res) => {
               sender: { id: senderId },
               message: { mid: `${senderId}_${Date.now()}`, text: commentText },
             };
+            console.log('Transformed feed event:', JSON.stringify(event, null, 2));
             promises.push(handleMessage(event));
           }
         });
