@@ -22,13 +22,30 @@ router.post('/', async (req, res) => {
   if (body.object === 'page') {
     const promises = [];
     body.entry.forEach(entry => {
-      entry.messaging.forEach(event => {
-        if (event.message) {
-          promises.push(handleMessage(event));
-        } else if (event.postback) {
-          promises.push(handlePostback(event));
-        }
-      });
+      // Handle messaging events (direct messages and postbacks)
+      if (entry.messaging) {
+        entry.messaging.forEach(event => {
+          if (event.message) {
+            promises.push(handleMessage(event));
+          } else if (event.postback) {
+            promises.push(handlePostback(event));
+          }
+        });
+      }
+      // Handle feed events (comments on posts)
+      if (entry.changes) {
+        entry.changes.forEach(change => {
+          if (change.field === 'feed' && change.value.verb === 'add' && change.value.item === 'comment') {
+            const senderId = change.value.from.id;
+            const commentText = change.value.message;
+            const event = {
+              sender: { id: senderId },
+              message: { mid: `${senderId}_${Date.now()}`, text: commentText },
+            };
+            promises.push(handleMessage(event));
+          }
+        });
+      }
     });
     await Promise.all(promises);
     res.status(200).send('EVENT_RECEIVED');
