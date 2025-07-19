@@ -16,13 +16,11 @@ router.get('/', (req, res) => {
   }
 });
 
-// Webhook event handler
 router.post('/', async (req, res) => {
   const body = req.body;
   if (body.object === 'page') {
     const promises = [];
     body.entry.forEach(entry => {
-      // Handle messaging events (direct messages and postbacks)
       if (entry.messaging) {
         entry.messaging.forEach(event => {
           if (event.message) {
@@ -32,7 +30,6 @@ router.post('/', async (req, res) => {
           }
         });
       }
-      // Handle feed events (comments on posts)
       if (entry.changes) {
         entry.changes.forEach(change => {
           if (change.field === 'feed' && change.value.verb === 'add' && change.value.item === 'comment') {
@@ -47,8 +44,13 @@ router.post('/', async (req, res) => {
         });
       }
     });
-    await Promise.all(promises);
-    res.status(200).send('EVENT_RECEIVED');
+    try {
+      await Promise.all(promises);
+      res.status(200).send('EVENT_RECEIVED');
+    } catch (error) {
+      console.error('Error processing webhook events:', error);
+      res.status(500).send('ERROR_PROCESSING');
+    }
   } else {
     res.sendStatus(404);
   }
