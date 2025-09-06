@@ -9,6 +9,14 @@ router.get('/privacy', (req, res) => {
   res.render('public/privacy');
 });
 
+router.get('/privacy-policy', (req, res) => {
+  res.render('public/privacy-policy', {
+    lastUpdated: 'September 6, 2025',
+    contactEmail: 'ng.huyminh91@gmail.com',
+    companyAddress: 'TG Business - online clothing'
+  });
+});
+
 router.get('/robots.txt', (req, res) => {
   res.type('text/plain');
   res.send(`
